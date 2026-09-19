@@ -199,11 +199,14 @@ function CashOutWizardContent() {
                   type="button"
                   className={`operator-card ${operator === op ? "selected" : ""}`}
                   onClick={() => setOperator(op)}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "12px 8px" }}
                 >
-                  <span>{op === "GP" ? "Grameenphone" : op === "ROBI" ? "Robi" : "Banglalink"}</span>
-                  <span style={{ fontSize: "0.75rem", color: operator === op ? "var(--ft-green)" : "var(--text-muted)" }}>
-                    {op}
-                  </span>
+                  <img
+                    src={op === "GP" ? "/logos/gp.svg" : op === "ROBI" ? "/logos/robi.svg" : "/logos/banglalink.svg"}
+                    alt={op}
+                    style={{ height: op === "BANGLALINK" ? "16px" : "22px", width: "auto", objectFit: "contain", margin: "2px 0" }}
+                  />
+                  <span style={{ fontSize: "0.8125rem", fontWeight: "700" }}>{op === "GP" ? "Grameenphone" : op === "ROBI" ? "Robi" : "Banglalink"}</span>
                 </button>
               ))}
             </div>
@@ -302,9 +305,18 @@ function CashOutWizardContent() {
                   type="button"
                   className={`operator-card ${payoutMethod === method ? "selected" : ""}`}
                   onClick={() => setPayoutMethod(method)}
-                  style={{ padding: "12px 8px" }}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "12px 8px" }}
                 >
-                  <span>{method === "BKASH" ? "bKash" : method === "NAGAD" ? "Nagad" : "Bank"}</span>
+                  {method === "BKASH" ? (
+                    <img src="/logos/bkash.svg" alt="bKash" style={{ height: "24px", width: "auto", objectFit: "contain" }} />
+                  ) : method === "NAGAD" ? (
+                    <img src="/logos/nagad.svg" alt="Nagad" style={{ height: "22px", width: "auto", objectFit: "contain" }} />
+                  ) : (
+                    <span style={{ fontSize: "1.25rem", lineHeight: 1 }}>🏦</span>
+                  )}
+                  <span style={{ fontSize: "0.8125rem", fontWeight: "700" }}>
+                    {method === "BKASH" ? "bKash" : method === "NAGAD" ? "Nagad" : "Bank Transfer"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -522,7 +534,16 @@ function CashOutWizardContent() {
 
 export default function CashOutWizardPage() {
   return (
-    <React.Suspense fallback={<div className="container" style={{ padding: "40px", textAlign: "center" }}>Loading Cash Out...</div>}>
+    <React.Suspense fallback={
+      <div className="container text-center" style={{ padding: "60px 20px" }}>
+        <img
+          src="/images/flexitaka-logo.png"
+          alt="FlexiTaka"
+          style={{ height: "40px", width: "auto", margin: "0 auto 16px auto", display: "block" }}
+        />
+        <div style={{ color: "var(--text-secondary)", fontSize: "0.9375rem" }}>Loading Cash Out Gateway...</div>
+      </div>
+    }>
       <CashOutWizardContent />
     </React.Suspense>
   );

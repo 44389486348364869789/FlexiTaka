@@ -168,11 +168,14 @@ function RechargeWizardContent() {
                   type="button"
                   className={`operator-card ${operator === op ? "selected" : ""}`}
                   onClick={() => setOperator(op)}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "12px 8px" }}
                 >
-                  <span>{op === "GP" ? "Grameenphone" : op === "ROBI" ? "Robi" : "Banglalink"}</span>
-                  <span style={{ fontSize: "0.75rem", color: operator === op ? "var(--ft-green)" : "var(--text-muted)" }}>
-                    {op}
-                  </span>
+                  <img
+                    src={op === "GP" ? "/logos/gp.svg" : op === "ROBI" ? "/logos/robi.svg" : "/logos/banglalink.svg"}
+                    alt={op}
+                    style={{ height: op === "BANGLALINK" ? "16px" : "22px", width: "auto", objectFit: "contain", margin: "2px 0" }}
+                  />
+                  <span style={{ fontSize: "0.8125rem", fontWeight: "700" }}>{op === "GP" ? "Grameenphone" : op === "ROBI" ? "Robi" : "Banglalink"}</span>
                 </button>
               ))}
             </div>
@@ -317,17 +320,19 @@ function RechargeWizardContent() {
                 type="button"
                 className={`operator-card ${paymentMethod === "BKASH" ? "selected" : ""}`}
                 onClick={() => setPaymentMethod("BKASH")}
-                style={{ padding: "14px" }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "14px" }}
               >
-                <span>bKash Payment</span>
+                <img src="/logos/bkash.svg" alt="bKash" style={{ height: "26px", width: "auto", objectFit: "contain" }} />
+                <span style={{ fontSize: "0.875rem", fontWeight: "700" }}>bKash Payment</span>
               </button>
               <button
                 type="button"
                 className={`operator-card ${paymentMethod === "NAGAD" ? "selected" : ""}`}
                 onClick={() => setPaymentMethod("NAGAD")}
-                style={{ padding: "14px" }}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "14px" }}
               >
-                <span>Nagad Payment</span>
+                <img src="/logos/nagad.svg" alt="Nagad" style={{ height: "24px", width: "auto", objectFit: "contain" }} />
+                <span style={{ fontSize: "0.875rem", fontWeight: "700" }}>Nagad Payment</span>
               </button>
             </div>
           </div>
@@ -422,7 +427,16 @@ function RechargeWizardContent() {
 
 export default function RechargeWizardPage() {
   return (
-    <React.Suspense fallback={<div className="container" style={{ padding: "40px", textAlign: "center" }}>Loading Recharge...</div>}>
+    <React.Suspense fallback={
+      <div className="container text-center" style={{ padding: "60px 20px" }}>
+        <img
+          src="/images/flexitaka-logo.png"
+          alt="FlexiTaka"
+          style={{ height: "40px", width: "auto", margin: "0 auto 16px auto", display: "block" }}
+        />
+        <div style={{ color: "var(--text-secondary)", fontSize: "0.9375rem" }}>Loading Recharge Gateway...</div>
+      </div>
+    }>
       <RechargeWizardContent />
     </React.Suspense>
   );

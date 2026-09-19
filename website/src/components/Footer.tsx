@@ -21,24 +21,14 @@ export default function Footer() {
         }} className="footer-grid">
           {/* Brand Info */}
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-              <div style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "8px",
-                background: "var(--ft-green)",
-                color: "#FFF",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: "bold",
-                fontSize: "1rem"
-              }}>
-                FT
-              </div>
-              <span style={{ fontSize: "1.25rem", fontWeight: "800", color: "#0F172A" }}>
-                Flexi<span style={{ color: "var(--ft-green)" }}>Taka</span>
-              </span>
+            <div style={{ marginBottom: "16px" }}>
+              <Link href="/" style={{ textDecoration: "none", display: "inline-block" }}>
+                <img
+                  src="/images/flexitaka-logo.png"
+                  alt="FlexiTaka - SIM Balance to Cash"
+                  className="brand-logo"
+                />
+              </Link>
             </div>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.6, maxWidth: "340px", marginBottom: "16px" }}>
               Your SIM balance, more value. Convert unused prepaid balance to mobile wallet cash or enjoy instant discounts on airtime top-ups.

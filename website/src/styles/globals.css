@@ -427,3 +427,16 @@ button, input, select, textarea {
   }
 }
 
+.brand-logo {
+  height: 42px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 600px) {
+  .brand-logo {
+    height: 36px;
+  }
+}
+

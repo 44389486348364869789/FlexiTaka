@@ -98,7 +98,7 @@ export default function Calculator() {
       <div style={{ marginBottom: "20px" }}>
         <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
           <span>Select Operator</span>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: "normal" }}>Official BD Telecoms</span>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: "normal" }}>Available Networks</span>
         </label>
         <div className="operator-grid" style={{ marginBottom: "0" }}>
           {(["GP", "ROBI", "BANGLALINK"] as OperatorCode[]).map((op) => (
@@ -107,10 +107,15 @@ export default function Calculator() {
               type="button"
               className={`operator-card ${operator === op ? "selected" : ""}`}
               onClick={() => setOperator(op)}
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", padding: "10px 6px" }}
             >
-              <span>{op === "GP" ? "Grameenphone" : op === "ROBI" ? "Robi" : "Banglalink"}</span>
-              <span style={{ fontSize: "0.75rem", color: operator === op ? "var(--ft-green)" : "var(--text-muted)" }}>
-                {op}
+              <img
+                src={op === "GP" ? "/logos/gp.svg" : op === "ROBI" ? "/logos/robi.svg" : "/logos/banglalink.svg"}
+                alt={op}
+                style={{ height: op === "BANGLALINK" ? "16px" : "20px", width: "auto", objectFit: "contain", margin: "2px 0" }}
+              />
+              <span style={{ fontSize: "0.8125rem", fontWeight: "700" }}>
+                {op === "GP" ? "Grameenphone" : op === "ROBI" ? "Robi" : "Banglalink"}
               </span>
             </button>
           ))}

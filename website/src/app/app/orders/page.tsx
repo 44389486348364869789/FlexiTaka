@@ -144,7 +144,19 @@ export default function OrdersHistoryPage() {
           </div>
         ) : filteredOrders.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px 20px" }}>
-            <Clock size={36} color="var(--text-muted)" style={{ margin: "0 auto 12px auto" }} />
+            <div style={{ marginBottom: "16px" }}>
+              <img
+                src="/images/flexitaka-logo.png"
+                alt="FlexiTaka"
+                style={{
+                  height: "36px",
+                  width: "auto",
+                  objectFit: "contain",
+                  margin: "0 auto",
+                  display: "block"
+                }}
+              />
+            </div>
             <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
               No transactions match your criteria
             </h3>

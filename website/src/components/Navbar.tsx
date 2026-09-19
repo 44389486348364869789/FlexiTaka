@@ -37,27 +37,12 @@ export default function Navbar() {
     <header className="header-glass">
       <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "var(--header-height)" }}>
         {/* Brand Logo */}
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
-          <div style={{
-            width: "38px",
-            height: "38px",
-            borderRadius: "10px",
-            background: "linear-gradient(135deg, #00A859 0%, #008746 100%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#FFF",
-            fontWeight: "800",
-            fontSize: "1.25rem",
-            boxShadow: "0 2px 6px rgba(0, 168, 89, 0.3)"
-          }}>
-            FT
-          </div>
-          <div>
-            <span style={{ fontSize: "1.375rem", fontWeight: "800", letterSpacing: "-0.02em", color: "#0F172A" }}>
-              Flexi<span style={{ color: "var(--ft-green)" }}>Taka</span>
-            </span>
-          </div>
+        <Link href="/" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+          <img
+            src="/images/flexitaka-logo.png"
+            alt="FlexiTaka - SIM Balance to Cash"
+            className="brand-logo"
+          />
         </Link>
 
         {/* Desktop Navigation */}

@@ -33,6 +33,19 @@ export default function HomePage() {
           }} className="hero-grid">
             {/* Hero Left Copy */}
             <div>
+              <div style={{ marginBottom: "20px" }}>
+                <img
+                  src="/images/flexitaka-logo.png"
+                  alt="FlexiTaka - SIM Balance to Cash"
+                  style={{
+                    height: "44px",
+                    width: "auto",
+                    objectFit: "contain",
+                    display: "block"
+                  }}
+                />
+              </div>
+
               <div style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -116,38 +129,59 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Operator & Payment Partner Bar */}
+      {/* Supported Telecom Networks & Available Wallets Bar */}
       <section style={{ backgroundColor: "#FFFFFF", padding: "32px 0", borderBottom: "1px solid var(--border-light)" }}>
         <div className="container" style={{ textAlign: "center" }}>
-          <p style={{ fontSize: "0.8125rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--text-muted)", marginBottom: "20px" }}>
-            Supported Telecom Networks & Digital Wallets
-          </p>
           <div style={{
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            gap: "40px",
+            gap: "36px",
             flexWrap: "wrap"
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: "700", fontSize: "1.0625rem", color: "#1E293B" }}>
-              <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#00A859" }}></div>
-              Grameenphone (GP)
+            {/* Supported Telecom Networks */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)" }}>
+                Supported Telecom Networks:
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                {/* Grameenphone */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)" }}>
+                  <img src="/logos/gp.svg" alt="Grameenphone" style={{ height: "22px", width: "auto", display: "block" }} />
+                  <span style={{ fontWeight: "700", fontSize: "0.875rem", color: "#0F172A" }}>Grameenphone</span>
+                </div>
+
+                {/* Robi */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)" }}>
+                  <img src="/logos/robi.svg" alt="Robi" style={{ height: "22px", width: "auto", display: "block" }} />
+                  <span style={{ fontWeight: "700", fontSize: "0.875rem", color: "#0F172A" }}>Robi</span>
+                </div>
+
+                {/* Banglalink */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)" }}>
+                  <img src="/logos/banglalink.svg" alt="Banglalink" style={{ height: "18px", width: "auto", display: "block" }} />
+                </div>
+              </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: "700", fontSize: "1.0625rem", color: "#1E293B" }}>
-              <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#E11D48" }}></div>
-              Robi Axiata
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", fontWeight: "700", fontSize: "1.0625rem", color: "#1E293B" }}>
-              <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: "#F97316" }}></div>
-              Banglalink
-            </div>
+
             <div style={{ height: "24px", width: "1px", backgroundColor: "var(--border-card)" }} className="divider-desktop"></div>
-            <div style={{ display: "flex", alignItems: "center", gap: "16px", color: "var(--text-secondary)", fontWeight: "600", fontSize: "0.9375rem" }}>
-              <span>bKash</span>
-              <span>•</span>
-              <span>Nagad</span>
-              <span>•</span>
-              <span>Bank Transfer</span>
+
+            {/* Available Wallets */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+              <span style={{ fontSize: "0.8125rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-muted)" }}>
+                Available Wallets:
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                {/* bKash */}
+                <div style={{ display: "flex", alignItems: "center", padding: "6px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)" }}>
+                  <img src="/logos/bkash.svg" alt="bKash" style={{ height: "22px", width: "auto", display: "block" }} />
+                </div>
+
+                {/* Nagad */}
+                <div style={{ display: "flex", alignItems: "center", padding: "6px 14px", background: "var(--bg-main)", borderRadius: "var(--radius-md)", border: "1px solid var(--border-light)" }}>
+                  <img src="/logos/nagad.svg" alt="Nagad" style={{ height: "22px", width: "auto", display: "block" }} />
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -58,13 +58,25 @@ export default function AppDashboardPage() {
         flexWrap: "wrap",
         gap: "20px"
       }}>
-        <div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: "800", color: "var(--text-primary)", marginBottom: "6px" }}>
-            Web App Dashboard
-          </h1>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", margin: 0 }}>
-            Quickly initiate a balance cash out, send a discounted recharge, or track ongoing orders.
-          </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <img
+            src="/images/flexitaka-logo.png"
+            alt="FlexiTaka"
+            style={{
+              height: "44px",
+              width: "auto",
+              objectFit: "contain",
+              display: "block"
+            }}
+          />
+          <div>
+            <h1 style={{ fontSize: "1.75rem", fontWeight: "800", color: "var(--text-primary)", marginBottom: "4px" }}>
+              Customer Web App
+            </h1>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", margin: 0 }}>
+              Convert SIM balance to cash, send discounted recharges, or track transactions in real time.
+            </p>
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: "12px" }}>
@@ -192,7 +204,19 @@ export default function AppDashboardPage() {
             borderRadius: "var(--radius-md)",
             border: "1px dashed var(--border-card)"
           }}>
-            <Clock size={36} color="var(--text-muted)" style={{ margin: "0 auto 12px auto" }} />
+            <div style={{ marginBottom: "16px" }}>
+              <img
+                src="/images/flexitaka-logo.png"
+                alt="FlexiTaka"
+                style={{
+                  height: "36px",
+                  width: "auto",
+                  objectFit: "contain",
+                  margin: "0 auto",
+                  display: "block"
+                }}
+              />
+            </div>
             <h4 style={{ fontSize: "1.0625rem", fontWeight: "700", color: "var(--text-primary)", marginBottom: "4px" }}>
               No orders found yet
             </h4>
