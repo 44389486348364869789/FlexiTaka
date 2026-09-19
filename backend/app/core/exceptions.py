@@ -39,7 +39,7 @@ class NotFoundException(FlexiTakaException):
 
 class ValidationException(FlexiTakaException):
     def __init__(self, message: str, code: ErrorCode = ErrorCode.VALIDATION_ERROR, details: Any = None):
-        super().__init__(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, code=code, message=message, details=details)
+        super().__init__(status_code=422, code=code, message=message, details=details)
 
 
 class ConflictException(FlexiTakaException):
