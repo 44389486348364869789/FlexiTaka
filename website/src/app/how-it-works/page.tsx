@@ -110,21 +110,17 @@ export default function HowItWorksPage() {
                   Perform Operator Balance Transfer on Your Device
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5, marginBottom: "12px" }}>
-                  Open your phone's dialer or official telecom app to transfer the balance to our assigned number. Use your operator's designated balance transfer menu:
+                  Open your phone's dialer or official telecom app to transfer the balance to our assigned number:
                 </p>
                 <div style={{
                   background: "var(--bg-main)",
                   border: "1px solid var(--border-card)",
                   borderRadius: "var(--radius-sm)",
-                  padding: "12px 16px",
-                  fontSize: "0.875rem",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "6px"
+                  padding: "14px 18px",
+                  fontSize: "0.9375rem",
+                  lineHeight: 1.6
                 }}>
-                  <div><strong>Grameenphone (GP):</strong> Dial *121*1500# or use the official MyGP App</div>
-                  <div><strong>Robi:</strong> Dial *123*4# or use the official MyRobi App</div>
-                  <div><strong>Banglalink:</strong> Dial *1000# or use the official MyBL App</div>
+                  Use your operator's official balance transfer option in <strong>MyGP</strong>, <strong>MyRobi</strong>, <strong>MyBL</strong>, or the operator's official USSD channel.
                 </div>
               </div>
             </div>

@@ -16,7 +16,8 @@ redis_client: Optional[aioredis.Redis] = None
 async def connect_to_redis() -> None:
     global redis_client
     try:
-        logger.info("Connecting to Redis at %s", settings.REDIS_URL)
+        masked_redis = settings.REDIS_URL.split("@")[-1] if "@" in settings.REDIS_URL else "localhost"
+        logger.info("Connecting to Redis at %s", masked_redis)
         redis_client = aioredis.from_url(
             settings.REDIS_URL,
             decode_responses=True,

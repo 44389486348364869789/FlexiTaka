@@ -134,25 +134,22 @@ function CashOutWizardContent() {
     }
   };
 
-  const getUSSDInstructions = () => {
+  const getTransferInstructions = () => {
     switch (operator) {
       case "GP":
         return {
-          code: "*121*1500#",
-          app: "MyGP App → Menu → Balance Transfer",
-          notes: "Follow on-screen USSD prompts, enter the assigned number, amount, and your GP PIN.",
+          app: "MyGP App or dial *121*1500#",
+          notes: "Use your operator's official balance transfer option in MyGP, MyRobi, MyBL, or the operator's official USSD channel.",
         };
       case "ROBI":
         return {
-          code: "*123*4#",
-          app: "MyRobi App → Balance Transfer",
-          notes: "Dial code, select Balance Transfer, input assigned number and amount.",
+          app: "MyRobi App or official USSD channel",
+          notes: "Use your operator's official balance transfer option in MyGP, MyRobi, MyBL, or the operator's official USSD channel.",
         };
       case "BANGLALINK":
         return {
-          code: "*1000#",
-          app: "MyBL App → Balance Transfer",
-          notes: "Dial code or navigate via MyBL App to send balance to the assigned number.",
+          app: "MyBL App or official USSD channel",
+          notes: "Use your operator's official balance transfer option in MyGP, MyRobi, MyBL, or the operator's official USSD channel.",
         };
     }
   };
@@ -412,14 +409,11 @@ function CashOutWizardContent() {
               fontSize: "0.875rem",
               lineHeight: 1.6
             }}>
-              <p style={{ marginBottom: "8px" }}>
-                <strong>Option A (USSD Code):</strong> Dial <span style={{ background: "#E2E8F0", padding: "2px 6px", borderRadius: "4px", fontWeight: "700" }}>{getUSSDInstructions().code}</span> from your SIM card.
+              <p style={{ marginBottom: "8px", fontWeight: "600", color: "var(--text-primary)" }}>
+                Transfer Channel: {getTransferInstructions().app}
               </p>
-              <p style={{ marginBottom: "8px" }}>
-                <strong>Option B (Official App):</strong> Use {getUSSDInstructions().app}.
-              </p>
-              <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "0.8125rem" }}>
-                {getUSSDInstructions().notes}
+              <p style={{ color: "var(--text-secondary)", margin: 0, fontSize: "0.875rem" }}>
+                {getTransferInstructions().notes}
               </p>
             </div>
           </div>

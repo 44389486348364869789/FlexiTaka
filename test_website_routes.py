@@ -16,6 +16,7 @@ routes = [
     "/app/cashout",
     "/app/recharge",
     "/app/orders",
+    "/app/order/ORD-TRACK-DEMO",
     "/app/support",
     "/app/profile"
 ]
@@ -38,7 +39,7 @@ for r in routes:
         all_passed = False
 
 if all_passed:
-    print("\nALL 16 ROUTES VERIFIED AND HEALTHY!")
+    print(f"\nALL {len(routes)} ROUTES VERIFIED AND HEALTHY!")
     sys.exit(0)
 else:
     print("\nSOME ROUTES FAILED!")

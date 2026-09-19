@@ -14,15 +14,16 @@ db: Optional[AsyncIOMotorDatabase] = None
 async def connect_to_mongo() -> None:
     global client, db
     try:
-        logger.info("Connecting to MongoDB at %s", settings.MONGODB_URI)
+        masked_uri = settings.MONGODB_URI.split("@")[-1] if "@" in settings.MONGODB_URI else "localhost"
+        logger.info("Connecting to MongoDB at %s", masked_uri)
         client = AsyncIOMotorClient(
             settings.MONGODB_URI,
             maxPoolSize=50,
             minPoolSize=10,
-            serverSelectionTimeoutMS=5000
+            serverSelectionTimeoutMS=10000
         )
         # Verify connection
-        await client.server_info()
+        await client.admin.command('ping')
         db = client[settings.MONGODB_DATABASE]
         logger.info("Successfully connected to MongoDB database '%s'", settings.MONGODB_DATABASE)
     except Exception as exc:

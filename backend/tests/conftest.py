@@ -25,19 +25,26 @@ from app.db.redis import close_redis_connection, connect_to_redis, get_redis
 from app.main import app
 
 
+_indexes_ensured = False
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def clean_db():
+    global _indexes_ensured
+    import asyncio
     await connect_to_mongo()
     await connect_to_redis()
     db = get_database()
     r = get_redis()
     if r:
         await r.flushdb()
-    await ensure_indexes(db)
-    # Clear collections before each test for total test isolation
-    for col_name in await db.list_collection_names():
-        if not col_name.startswith("system."):
-            await db[col_name].delete_many({})
+    if not _indexes_ensured:
+        await ensure_indexes(db)
+        _indexes_ensured = True
+    # Fast parallel collection clearing
+    col_names = [c for c in await db.list_collection_names() if not c.startswith("system.")]
+    if col_names:
+        await asyncio.gather(*(db[c].delete_many({}) for c in col_names))
     yield db
     if r:
         await r.flushdb()
