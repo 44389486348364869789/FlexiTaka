@@ -45,8 +45,8 @@ export default function PricingPage() {
           <h1 style={{ fontSize: "2.5rem", fontWeight: "900", color: "var(--text-primary)", marginBottom: "12px" }}>
             Transparent, Live Pricing
           </h1>
-          <p style={{ fontSize: "1.125rem", color: "var(--text-secondary)", maxWidth: "620px", margin: "0 auto" }}>
-            All fees, discounts, and payouts are authoritative, calculated in real-time by the FlexiTaka backend. What you see is exactly what you get.
+          <p style={{ fontSize: "1.0625rem", color: "var(--text-secondary)", maxWidth: "680px", margin: "0 auto", lineHeight: 1.6 }}>
+            All fees, discounts, and payouts are authoritative, calculated in real-time by the FlexiTaka backend via <code style={{ background: "var(--bg-subtle)", padding: "2px 6px", borderRadius: "4px", fontSize: "0.875rem" }}>POST /api/v1/pricing/cashout-quote</code> and <code style={{ background: "var(--bg-subtle)", padding: "2px 6px", borderRadius: "4px", fontSize: "0.875rem" }}>POST /api/v1/pricing/recharge-quote</code>. What you see is exactly what you get.
           </p>
         </div>
       </div>

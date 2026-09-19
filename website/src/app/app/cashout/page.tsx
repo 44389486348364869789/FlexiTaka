@@ -138,7 +138,7 @@ function CashOutWizardContent() {
     switch (operator) {
       case "GP":
         return {
-          app: "MyGP App or dial *121*1500#",
+          app: "MyGP App or official USSD channel",
           notes: "Use your operator's official balance transfer option in MyGP, MyRobi, MyBL, or the operator's official USSD channel.",
         };
       case "ROBI":
