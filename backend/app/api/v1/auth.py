@@ -2,9 +2,15 @@
 Auth Router: OTP Request & Verification, Admin Authentication.
 """
 
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from app.api.dependencies import get_db, get_users_repo
+from app.api.dependencies import (
+    get_audit_repo, get_db, get_guest_session_id_optional,
+    get_orders_repo, get_users_repo
+)
+from app.db.repositories.audit_repo import AuditRepository
+from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.users_repo import UsersRepository
 from app.modules.auth.schemas import (
     AdminLoginRequest, AdminTokenResponse, RequestOtpRequest,
@@ -27,10 +33,24 @@ async def request_otp(
 @router.post("/verify-otp", response_model=TokenResponse)
 async def verify_otp(
     payload: VerifyOtpRequest,
-    users_repo: UsersRepository = Depends(get_users_repo)
+    request: Request,
+    guest_session_id_header: Optional[str] = Depends(get_guest_session_id_optional),
+    users_repo: UsersRepository = Depends(get_users_repo),
+    orders_repo: OrdersRepository = Depends(get_orders_repo),
+    audit_repo: AuditRepository = Depends(get_audit_repo)
 ):
-    service = AuthService(users_repo)
-    return await service.verify_otp(payload.phone, payload.otp)
+    service = AuthService(users_repo, orders_repo=orders_repo, audit_repo=audit_repo)
+    guest_session_id = (payload.guest_session_id or guest_session_id_header or "").strip() or None
+    ip_address = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+
+    return await service.verify_otp(
+        phone=payload.phone,
+        otp=payload.otp,
+        guest_session_id=guest_session_id,
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
 
 
 @router.post("/admin-login", response_model=AdminTokenResponse)

@@ -50,3 +50,8 @@ class ConflictException(FlexiTakaException):
 class RateLimitException(FlexiTakaException):
     def __init__(self, message: str = "Too many requests. Please slow down.", code: ErrorCode = ErrorCode.RATE_LIMITED):
         super().__init__(status_code=status.HTTP_429_TOO_MANY_REQUESTS, code=code, message=message)
+
+
+class ServiceUnavailableException(FlexiTakaException):
+    def __init__(self, message: str = "Service temporarily unavailable. Please try again later.", code: ErrorCode = ErrorCode.SERVICE_UNAVAILABLE):
+        super().__init__(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, code=code, message=message)

@@ -35,6 +35,27 @@ class UsersRepository(BaseRepository):
     async def get_guest_session(self, guest_session_id: str) -> Optional[Dict[str, Any]]:
         return await self.guests_collection.find_one({"guest_session_id": guest_session_id})
 
+    async def mark_guest_session_linked(self, guest_session_id: str, user_id: str) -> bool:
+        now = datetime.now(timezone.utc)
+        result = await self.guests_collection.update_one(
+            {
+                "guest_session_id": guest_session_id,
+                "$or": [
+                    {"linked_user_id": None},
+                    {"linked_user_id": {"$exists": False}},
+                    {"linked_user_id": user_id}
+                ]
+            },
+            {
+                "$set": {
+                    "linked_user_id": user_id,
+                    "linked_at": now.isoformat(),
+                    "updated_at": now.isoformat()
+                }
+            }
+        )
+        return result.matched_count > 0
+
     # --- Admin Users ---
     async def get_admin_by_email(self, email: str) -> Optional[Dict[str, Any]]:
         return await self.admin_collection.find_one({"email": email.lower().strip()})

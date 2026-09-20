@@ -4,7 +4,7 @@ Uses Pydantic Settings for strictly validated environment variables.
 """
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -65,6 +65,26 @@ class Settings(BaseSettings):
     DEFAULT_RECHARGE_DISCOUNT_PERCENT: int = 5
     MIN_ORDER_AMOUNT_BDT: int = 50
     MAX_ORDER_AMOUNT_BDT: int = 50000
+
+    # SMS Provider Configuration
+    SMS_PROVIDER: str = "mock"  # "zendsms", "generic_http", "mock"
+    ZENDSMS_API_KEY: Optional[str] = None
+    ZENDSMS_BASE_URL: str = "https://api.zendsms.com"
+    ZENDSMS_SENDER_ID: str = "8809612781023"
+    ZENDSMS_BRAND: str = "FlexiTaka"
+    ZENDSMS_EXPIRY_SECONDS: int = 300
+    SMS_API_BASE_URL: Optional[str] = None
+    SMS_API_KEY: Optional[str] = None
+    SMS_AUTH_HEADER: str = "Authorization"
+    SMS_AUTH_SCHEME: str = "Bearer"
+    SMS_SEND_PATH: str = "/api/v1/sms/send"
+    SMS_VERIFY_PATH: Optional[str] = None
+    SMS_SENDER_ID: Optional[str] = "FlexiTaka"
+
+    # OTP Security Thresholds
+    OTP_TTL_SECONDS: int = 300
+    OTP_COOLDOWN_SECONDS: int = 60
+    OTP_MAX_ATTEMPTS: int = 5
 
     @property
     def is_production(self) -> bool:

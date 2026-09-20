@@ -126,6 +126,7 @@ export interface OrderDetail {
   cashout_details?: Record<string, any> | null;
   recharge_details?: Record<string, any> | null;
   tracking_token?: string | null;
+  linked_from_guest_session_id?: string | null;
   events: OrderEvent[];
   created_at: string;
   updated_at: string;
@@ -142,6 +143,7 @@ export interface OrderSummary {
   amount_poisha: number;
   currency: string;
   status: OrderStatus;
+  linked_from_guest_session_id?: string | null;
   created_at: string;
   updated_at: string;
 }

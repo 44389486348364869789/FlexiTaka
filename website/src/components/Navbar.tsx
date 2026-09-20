@@ -4,16 +4,19 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { api, getStoredAuthToken, getStoredGuestSessionId } from "@/lib/api";
-import { ArrowRight, Menu, ShieldCheck, User, X } from "lucide-react";
+import { ArrowRight, Menu, User, X } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function Navbar() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [guestId, setGuestId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { tr, isBn } = useLanguage();
+  const nav = tr.common.nav;
 
   useEffect(() => {
-    // Check session
+    // Check session status
     const token = getStoredAuthToken();
     setIsLoggedIn(!!token);
     const gId = getStoredGuestSessionId();
@@ -24,24 +27,36 @@ export default function Navbar() {
     }
   }, [pathname]);
 
+  // Lock body scroll when mobile menu drawer is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileMenuOpen]);
+
   const navLinks = [
-    { name: "How It Works", href: "/how-it-works" },
-    { name: "Cash Out", href: "/cash-out" },
-    { name: "Recharge", href: "/recharge" },
-    { name: "Pricing", href: "/pricing" },
-    { name: "FAQ", href: "/faq" },
-    { name: "Support", href: "/support" },
+    { name: nav.howItWorks, href: "/how-it-works" },
+    { name: nav.cashOut, href: "/cash-out" },
+    { name: nav.recharge, href: "/recharge" },
+    { name: nav.pricing, href: "/pricing" },
+    { name: nav.faq, href: "/faq" },
+    { name: nav.support, href: "/support" },
   ];
 
   return (
     <header className="header-glass">
       <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "var(--header-height)" }}>
         {/* Brand Logo */}
-        <Link href="/" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", textDecoration: "none", flexShrink: 0 }}>
           <img
             src="/images/flexitaka-logo.png"
             alt="FlexiTaka - SIM Balance to Cash"
-            className="brand-logo"
+            className="brand-logo-img"
           />
         </Link>
 
@@ -51,11 +66,11 @@ export default function Navbar() {
             const isActive = pathname === link.href;
             return (
               <Link
-                key={link.name}
+                key={link.href}
                 href={link.href}
                 style={{
                   fontSize: "0.9375rem",
-                  fontWeight: isActive ? "700" : "500",
+                  fontWeight: isActive ? "600" : "500",
                   color: isActive ? "var(--ft-green)" : "var(--text-secondary)",
                   transition: "color 0.15s ease",
                   textDecoration: "none",
@@ -68,79 +83,165 @@ export default function Navbar() {
         </nav>
 
         {/* Actions & Session Indicator */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div className="header-actions-group">
           <Link
             href="/app"
-            className="btn btn-outline btn-sm"
+            className="btn btn-outline btn-sm header-btn-account"
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            title={isLoggedIn ? (isBn ? "অ্যাকাউন্ট" : "Account") : (isBn ? "ওয়েব অ্যাপ" : "Web App")}
+            aria-label={isLoggedIn ? (isBn ? "অ্যাকাউন্ট" : "Account") : (isBn ? "ওয়েব অ্যাপ" : "Web App")}
           >
             <User size={15} />
-            <span>{isLoggedIn ? "Account" : "Web App"}</span>
+            <span>{isLoggedIn ? (isBn ? "অ্যাকাউন্ট" : "Account") : (isBn ? "ওয়েব অ্যাপ" : "Web App")}</span>
           </Link>
 
           <Link
             href="/app/cashout"
-            className="btn btn-primary btn-sm"
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            className="btn btn-primary btn-sm header-btn-cta"
+            style={{ display: "inline-flex", alignItems: "center", gap: "5px", whiteSpace: "nowrap" }}
           >
-            <span>Start Now</span>
-            <ArrowRight size={15} />
+            <span>{nav.startNow}</span>
+            <ArrowRight size={14} />
           </Link>
 
           {/* Mobile Menu Toggle Button */}
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => setMobileMenuOpen(true)}
             style={{
               display: "none",
               background: "none",
               border: "none",
               cursor: "pointer",
               padding: "6px",
-              color: "var(--text-primary)"
+              color: "var(--text-primary)",
+              lineHeight: 1,
             }}
             className="mobile-toggle"
-            aria-label="Toggle Menu"
+            aria-label={nav.menu}
+            aria-expanded={mobileMenuOpen}
           >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            <Menu size={22} />
           </button>
         </div>
       </div>
 
-      {/* Mobile Drawer */}
+      {/* Mobile Right Slide-in Drawer & Dark Backdrop Overlay */}
       {mobileMenuOpen && (
-        <div style={{
-          background: "#FFFFFF",
-          borderTop: "1px solid var(--border-light)",
-          padding: "20px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "16px",
-          boxShadow: "var(--shadow-md)"
-        }}>
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              href={link.href}
-              onClick={() => setMobileMenuOpen(false)}
-              style={{
-                fontSize: "1rem",
-                fontWeight: "600",
-                color: pathname === link.href ? "var(--ft-green)" : "var(--text-primary)",
-                padding: "8px 0",
-              }}
-            >
-              {link.name}
-            </Link>
-          ))}
-          <div style={{ borderTop: "1px solid var(--border-card)", paddingTop: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-            <Link href="/app" onClick={() => setMobileMenuOpen(false)} className="btn btn-outline btn-full">
-              Customer Web App
-            </Link>
-            <Link href="/app/cashout" onClick={() => setMobileMenuOpen(false)} className="btn btn-primary btn-full">
-              Cash Out SIM Balance
-            </Link>
-          </div>
-        </div>
+        <>
+          <div
+            className="mobile-nav-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="mobile-nav-panel" role="dialog" aria-modal="true" aria-label={nav.menu}>
+            {/* Drawer Header */}
+            <div className="mobile-drawer-header">
+              <Link href="/" onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center" }}>
+                <img
+                  src="/images/flexitaka-logo.png"
+                  alt="FlexiTaka"
+                  style={{ height: "26px", width: "auto", display: "block" }}
+                />
+              </Link>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="mobile-drawer-close-btn"
+                aria-label={nav.close}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Drawer Body Content */}
+            <div className="mobile-drawer-body">
+              {/* Primary Service Actions */}
+              <div className="mobile-drawer-cta-grid">
+                <Link
+                  href="/app/cashout"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="btn btn-primary"
+                  style={{
+                    justifyContent: "center",
+                    height: "44px",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    borderRadius: "var(--radius-md)",
+                  }}
+                >
+                  <span>{nav.cashOut}</span>
+                  <ArrowRight size={15} />
+                </Link>
+
+                <Link
+                  href="/app/recharge"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="btn btn-outline"
+                  style={{
+                    justifyContent: "center",
+                    height: "44px",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    borderRadius: "var(--radius-md)",
+                    borderColor: "var(--border-light)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  <span>{nav.recharge}</span>
+                </Link>
+              </div>
+
+              {/* Navigation Links Group */}
+              <div className="mobile-drawer-section">
+                <div className="mobile-drawer-section-title">
+                  {isBn ? "ন্যাভিগেশন" : "Navigation"}
+                </div>
+                <div className="mobile-drawer-nav-list">
+                  {navLinks.map((link) => {
+                    const isActive = pathname === link.href;
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`mobile-drawer-nav-item ${isActive ? "active" : ""}`}
+                      >
+                        <span>{link.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mobile-drawer-divider" />
+
+              {/* Customer Portal Group */}
+              <div className="mobile-drawer-section">
+                <div className="mobile-drawer-section-title">
+                  {nav.portal}
+                </div>
+                <Link
+                  href="/app"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="mobile-drawer-account-card"
+                >
+                  <div className="mobile-drawer-account-info">
+                    <User size={18} color="var(--ft-green)" />
+                    <span className="mobile-drawer-account-name">
+                      {isLoggedIn
+                        ? (isBn ? "আমার অ্যাকাউন্ট" : "My Account")
+                        : (isBn ? "কাস্টমার ওয়েব অ্যাপ" : "Customer Web App")}
+                    </span>
+                  </div>
+                  <span className="mobile-drawer-account-badge">
+                    {isLoggedIn
+                      ? (isBn ? "ভেরিফায়েড" : "Verified")
+                      : (isBn ? `গেস্ট: ${guestId ? guestId.substring(0, 6) : "সক্রিয়"}` : `Guest: ${guestId ? guestId.substring(0, 6) : "Active"}`)}
+                  </span>
+                </Link>
+              </div>
+            </div>
+          </aside>
+        </>
       )}
     </header>
   );

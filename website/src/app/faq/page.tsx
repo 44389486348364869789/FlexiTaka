@@ -1,105 +1,304 @@
-import React from "react";
+"use client";
+
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { HelpCircle, ShieldCheck, ArrowRight } from "lucide-react";
+import {
+  ChevronDown,
+  HelpCircle,
+  ShieldCheck,
+  ArrowRight,
+  Search,
+} from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function FAQPage() {
-  const faqs = [
-    {
-      q: "What is FlexiTaka?",
-      a: "FlexiTaka is an audited digital platform in Bangladesh that allows users to convert unused prepaid mobile airtime balance to cash (sent to bKash, Nagad, or Bank) and purchase discounted mobile airtime recharges across Grameenphone, Robi, and Banglalink."
-    },
-    {
-      q: "Does FlexiTaka ever ask for my SIM PIN or operator password?",
-      a: "NEVER. FlexiTaka strictly adheres to a Zero-Credential security policy. We never ask for your SIM PIN, MyGP/MyRobi/MyBL password, or telecom verification OTP. You execute balance transfers yourself using your operator's official USSD code or official mobile app."
-    },
-    {
-      q: "What are the platform transaction limits?",
-      a: "FlexiTaka supports transactions starting from a minimum of ৳50.00 up to a maximum of ৳50,000.00 per transaction."
-    },
-    {
-      q: "What are the telecom operator balance transfer limits?",
-      a: "Telecom operator balance transfer limits and any applicable network transfer charges are established independently by each mobile network provider (Grameenphone, Robi, Banglalink) in compliance with BTRC regulations. Please consult your network's official mobile application (MyGP, MyRobi, MyBL) or dial their balance transfer USSD code to verify the limits applicable to your specific SIM connection."
-    },
-    {
-      q: "How fast do I receive my Cash Out payout?",
-      a: "Once you submit your transfer reference/proof, our operations staff verifies the incoming balance on physical receiving handsets. Verification and payout dispatch via bKash, Nagad, or Bank typically takes only 5 to 15 minutes during active operational hours."
-    },
-    {
-      q: "Is account registration or login required to use the service?",
-      a: "No. Login/Create Account is completely OPTIONAL. Guest users can perform complete Cash Out and Recharge transactions. Every order automatically receives an authorized tracking token so you can track your status live on our website."
-    },
-    {
-      q: "What happens if my transfer details are incorrect?",
-      a: "If you input an incorrect transaction reference or if the transfer failed on your operator's network, our staff verifier will mark the order with a clear note. You can update your reference or open a direct support ticket linked to your Order ID from the tracking page."
-    },
-    {
-      q: "What payment methods are supported for payouts and recharge?",
-      a: "We support bKash Personal, Nagad Personal, and major Bangladesh commercial bank accounts for Cash Out payouts. For Discounted Recharge payments, you can pay using your bKash or Nagad wallet."
-    }
-  ];
+  const { isBn, tr } = useLanguage();
+  const f = tr.faq;
+
+  const [activeCategory, setActiveCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set(["about-1", "cashout-1", "recharge-1"]));
+
+  const toggleItem = (id: string) => {
+    setOpenIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const categories = useMemo(() => {
+    const cats = Array.from(new Set(f.items.map((i) => i.category)));
+    return [isBn ? "সব" : "All", ...cats];
+  }, [f.items, isBn]);
+
+  const filteredFaqs = useMemo(() => {
+    return f.items.filter((item) => {
+      const allLabel = isBn ? "সব" : "All";
+      const matchesCategory = activeCategory === allLabel || activeCategory === "All" || item.category === activeCategory;
+      const qLower = searchQuery.toLowerCase().trim();
+      const matchesSearch =
+        !qLower ||
+        item.q.toLowerCase().includes(qLower) ||
+        item.a.toLowerCase().includes(qLower) ||
+        item.category.toLowerCase().includes(qLower);
+      return matchesCategory && matchesSearch;
+    });
+  }, [f.items, activeCategory, searchQuery, isBn]);
 
   return (
     <div style={{ backgroundColor: "var(--bg-main)", minHeight: "100vh", paddingBottom: "80px" }}>
-      {/* Header */}
+      {/* 1. Header Banner */}
       <div style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid var(--border-light)", padding: "48px 0" }}>
         <div className="container text-center">
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            padding: "4px 12px",
-            background: "var(--ft-green-subtle)",
-            color: "var(--ft-green-active)",
-            borderRadius: "var(--radius-full)",
-            fontSize: "0.8125rem",
-            fontWeight: "700",
-            marginBottom: "16px"
-          }}>
-            <HelpCircle size={16} />
-            <span>Frequently Asked Questions</span>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "4px 12px",
+              background: "var(--ft-green-subtle)",
+              color: "var(--ft-green-active)",
+              borderRadius: "var(--radius-full)",
+              fontSize: "0.8125rem",
+              fontWeight: "600",
+              marginBottom: "16px",
+            }}
+          >
+            <ShieldCheck size={16} />
+            <span>{f.badge}</span>
           </div>
-          <h1 style={{ fontSize: "2.5rem", fontWeight: "900", color: "var(--text-primary)", marginBottom: "12px" }}>
-            Help & Platform Guidance
+          <h1 style={{ fontSize: "2.375rem", fontWeight: "700", color: "var(--text-primary)", marginBottom: "12px", letterSpacing: "-0.02em" }}>
+            {f.title}
           </h1>
-          <p style={{ fontSize: "1.125rem", color: "var(--text-secondary)", maxWidth: "600px", margin: "0 auto" }}>
-            Got questions about transferring balance, limits, or security? Find transparent answers below.
+          <p style={{ fontSize: "1.0625rem", color: "var(--text-secondary)", maxWidth: "620px", margin: "0 auto", lineHeight: 1.6 }}>
+            {f.subtitle}
           </p>
         </div>
       </div>
 
-      <div className="container" style={{ paddingTop: "48px", maxWidth: "800px" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          {faqs.map((faq, idx) => (
-            <div key={idx} className="card" style={{ padding: "28px" }}>
-              <h3 style={{ fontSize: "1.1875rem", fontWeight: "800", color: "var(--text-primary)", marginBottom: "12px" }}>
-                {faq.q}
-              </h3>
-              <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.6, margin: 0 }}>
-                {faq.a}
-              </p>
-            </div>
-          ))}
+      <div className="container" style={{ paddingTop: "36px", maxWidth: "920px" }}>
+        {/* 2. Interactive Search Bar */}
+        <div
+          style={{
+            position: "relative",
+            marginBottom: "24px",
+          }}
+        >
+          <Search
+            size={18}
+            style={{
+              position: "absolute",
+              left: "16px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              color: "var(--text-muted)",
+              pointerEvents: "none",
+            }}
+          />
+          <input
+            type="text"
+            className="form-input"
+            placeholder={f.searchPlaceholder}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              paddingLeft: "46px",
+              height: "48px",
+              fontSize: "0.9375rem",
+              backgroundColor: "#FFFFFF",
+              borderRadius: "var(--radius-md)",
+            }}
+          />
         </div>
 
-        {/* Still have questions banner */}
-        <div style={{
-          backgroundColor: "#FFFFFF",
-          border: "1px solid var(--border-card)",
-          borderRadius: "var(--radius-lg)",
-          padding: "32px",
-          marginTop: "40px",
-          textAlign: "center"
-        }}>
-          <h3 style={{ fontSize: "1.25rem", fontWeight: "800", color: "var(--text-primary)", marginBottom: "8px" }}>
-            Still have questions?
-          </h3>
-          <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", marginBottom: "20px" }}>
-            Our customer support desk is available to assist you with any questions regarding orders or operator transfers.
-          </p>
-          <Link href="/support" className="btn btn-outline">
-            <span>Contact Customer Support</span>
-            <ArrowRight size={16} />
-          </Link>
+        {/* 3. Category Filter Chips */}
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            overflowX: "auto",
+            paddingBottom: "8px",
+            marginBottom: "28px",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          {categories.map((cat) => {
+            const isAll = cat === (isBn ? "সব" : "All");
+            const isSelected = activeCategory === cat || (isAll && (activeCategory === "All" || activeCategory === "সব"));
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setActiveCategory(cat)}
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: "var(--radius-full)",
+                  fontSize: "0.8125rem",
+                  fontWeight: isSelected ? "600" : "500",
+                  border: isSelected ? "1px solid var(--ft-green)" : "1px solid var(--border-card)",
+                  backgroundColor: isSelected ? "var(--ft-green)" : "#FFFFFF",
+                  color: isSelected ? "#FFFFFF" : "var(--text-secondary)",
+                  whiteSpace: "nowrap",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                {cat}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Results Counter if searching */}
+        {searchQuery && (
+          <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginBottom: "16px" }}>
+            {isBn
+              ? `"${searchQuery}" এর জন্য ${filteredFaqs.length}টি ফলাফল পাওয়া গেছে`
+              : `Showing ${filteredFaqs.length} result${filteredFaqs.length === 1 ? "" : "s"} for "${searchQuery}"`}
+          </div>
+        )}
+
+        {/* Accordion List */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {filteredFaqs.map((faq) => {
+            const isOpen = openIds.has(faq.id);
+            return (
+              <div
+                key={faq.id}
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  border: isOpen ? "1px solid var(--ft-green)" : "1px solid var(--border-card)",
+                  borderRadius: "var(--radius-md)",
+                  overflow: "hidden",
+                  transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+                  boxShadow: isOpen ? "var(--shadow-sm)" : "none",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleItem(faq.id)}
+                  aria-expanded={isOpen}
+                  style={{
+                    width: "100%",
+                    textAlign: "left",
+                    padding: "16px 20px",
+                    background: "none",
+                    border: "none",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "14px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                    <span
+                      style={{
+                        fontSize: "0.6875rem",
+                        fontWeight: "500",
+                        textTransform: "uppercase",
+                        color: "var(--text-muted)",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
+                      {faq.category}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: "600",
+                        color: isOpen ? "var(--ft-green-active)" : "var(--text-primary)",
+                      }}
+                    >
+                      {faq.q}
+                    </span>
+                  </div>
+                  <ChevronDown
+                    size={18}
+                    style={{
+                      color: isOpen ? "var(--ft-green)" : "var(--text-muted)",
+                      transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s ease",
+                      flexShrink: 0,
+                    }}
+                  />
+                </button>
+
+                {isOpen && (
+                  <div
+                    style={{
+                      padding: "0 20px 18px",
+                      color: "var(--text-secondary)",
+                      fontSize: "0.9375rem",
+                      lineHeight: 1.6,
+                      borderTop: "1px solid var(--border-light)",
+                      paddingTop: "14px",
+                    }}
+                  >
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {filteredFaqs.length === 0 && (
+            <div
+              className="card text-center"
+              style={{ padding: "40px 20px", color: "var(--text-muted)" }}
+            >
+              <HelpCircle size={32} style={{ margin: "0 auto 12px", opacity: 0.5 }} />
+              <p style={{ fontSize: "1rem", fontWeight: "600", color: "var(--text-primary)", margin: "0 0 6px" }}>
+                {f.noResults}
+              </p>
+              <p style={{ fontSize: "0.875rem", margin: 0 }}>
+                {f.tryDifferentSearch}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Still have questions card */}
+        <div
+          style={{
+            backgroundColor: "#FFFFFF",
+            border: "1px solid var(--border-card)",
+            borderRadius: "var(--radius-lg)",
+            padding: "28px 32px",
+            marginTop: "40px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "20px",
+          }}
+        >
+          <div>
+            <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "var(--text-primary)", marginBottom: "4px" }}>
+              {f.contactCtaTitle}
+            </h3>
+            <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", margin: 0 }}>
+              {f.contactCtaDesc}
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <a
+              href="mailto:Contact@flexitaka.com"
+              className="btn btn-outline btn-sm"
+              style={{ fontWeight: "600" }}
+            >
+              Contact@flexitaka.com
+            </a>
+            <Link href="/support" className="btn btn-primary btn-sm">
+              <span>{f.btnContactSupport}</span>
+              <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
       </div>
     </div>

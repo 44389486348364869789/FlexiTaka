@@ -316,12 +316,17 @@ export const api = {
   async verifyOtp(
     phone: string,
     otp: string
-  ): Promise<{ access_token: string; user_id: string; role: string }> {
-    const res = await request<{ access_token: string; user_id: string; role: string }>(
+  ): Promise<{ access_token: string; user_id: string; role: string; orders_linked?: number }> {
+    const guestId = getStoredGuestSessionId();
+    const res = await request<{ access_token: string; user_id: string; role: string; orders_linked?: number }>(
       "/auth/verify-otp",
       {
         method: "POST",
-        body: JSON.stringify({ phone, otp }),
+        body: JSON.stringify({
+          phone,
+          otp,
+          guest_session_id: guestId || undefined,
+        }),
       }
     );
     setStoredAuthToken(res.access_token);

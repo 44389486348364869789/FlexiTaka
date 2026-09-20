@@ -1,0 +1,27 @@
+{
+  "name": "FlexiTaka - Your SIM Balance, More Value",
+  "short_name": "FlexiTaka",
+  "description": "Convert unused prepaid mobile SIM balance to cash or get instant discounts on mobile airtime recharge in Bangladesh.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#00A859",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -4,17 +4,18 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { SupportTicket } from "@/lib/types";
+import FlexiLoading from "@/components/FlexiLoading";
+import { useLanguage } from "@/i18n/LanguageContext";
 import {
-  AlertCircle,
-  CheckCircle2,
-  Headphones,
   MessageSquare,
   Plus,
   RefreshCw,
   Send,
+  Headphones,
 } from "lucide-react";
 
 function AppSupportContent() {
+  const { lang, tr, toBnDigits } = useLanguage();
   const searchParams = useSearchParams();
   const prefillOrderId = searchParams.get("order_id") || "";
 
@@ -25,7 +26,9 @@ function AppSupportContent() {
   // New Ticket Form State
   const [showNewModal, setShowNewModal] = useState(!!prefillOrderId);
   const [category, setCategory] = useState("ORDER_STATUS");
-  const [subject, setSubject] = useState(prefillOrderId ? `Question regarding ${prefillOrderId}` : "");
+  const [subject, setSubject] = useState(
+    prefillOrderId ? (lang === "bn" ? `অর্ডার ${prefillOrderId} সম্পর্কিত প্রশ্ন` : `Question regarding ${prefillOrderId}`) : ""
+  );
   const [message, setMessage] = useState("");
   const [orderId, setOrderId] = useState(prefillOrderId);
   const [submitting, setSubmitting] = useState(false);
@@ -70,7 +73,7 @@ function AppSupportContent() {
       await loadTickets();
       setSelectedTicket(created);
     } catch (err: any) {
-      alert(err.message || "Failed to create support ticket");
+      alert(err.message || (lang === "bn" ? "সাপোর্ট টিকিট তৈরিতে ব্যর্থ হয়েছে" : "Failed to create support ticket"));
     } finally {
       setSubmitting(false);
     }
@@ -87,22 +90,37 @@ function AppSupportContent() {
       setReplyMessage("");
       await loadTickets();
     } catch (err: any) {
-      alert(err.message || "Failed to send message reply");
+      alert(err.message || (lang === "bn" ? "বার্তা পাঠাতে ব্যর্থ হয়েছে" : "Failed to send message reply"));
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const tSupport = tr.app.supportPage;
+
+  const getCategoryLabel = (cat: string) => {
+    switch (cat) {
+      case "ORDER_STATUS":
+        return lang === "bn" ? "অর্ডার যাচাই বিলম্ব" : "Order Verification Delay";
+      case "PAYMENT_ISSUE":
+        return lang === "bn" ? "পেমেন্ট / TrxID সমস্যা" : "Payment / TrxID Issue";
+      case "OPERATOR_ISSUE":
+        return lang === "bn" ? "অপারেটর USSD সমস্যা" : "Operator USSD Failure";
+      default:
+        return lang === "bn" ? "সাধারণ অনুসন্ধান" : "General Inquiries";
     }
   };
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px", flexWrap: "wrap", gap: "16px" }}>
         <div>
-          <h1 style={{ fontSize: "1.75rem", fontWeight: "900", color: "var(--text-primary)", marginBottom: "4px" }}>
-            Customer Support Desk
+          <h1 style={{ fontSize: "1.75rem", fontWeight: "700", color: "var(--text-primary)", marginBottom: "4px" }}>
+            {tSupport.title}
           </h1>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", margin: 0 }}>
-            Open support tickets, verify delayed transfers, or consult our technical operations desk.
+            {tSupport.subtitle}
           </p>
         </div>
 
@@ -111,7 +129,7 @@ function AppSupportContent() {
           className="btn btn-primary btn-sm"
         >
           <Plus size={16} />
-          <span>New Ticket</span>
+          <span>{lang === "bn" ? "নতুন টিকিট" : "New Ticket"}</span>
         </button>
       </div>
 
@@ -120,23 +138,26 @@ function AppSupportContent() {
         {/* Left Ticket List */}
         <div className="card" style={{ padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <span style={{ fontSize: "0.875rem", fontWeight: "700", color: "var(--text-primary)" }}>Your Tickets</span>
+            <span style={{ fontSize: "0.875rem", fontWeight: "600", color: "var(--text-primary)" }}>
+              {lang === "bn" ? "আপনার টিকিটসমূহ" : "Your Tickets"}
+            </span>
             <button onClick={loadTickets} className="btn btn-ghost btn-sm" style={{ padding: "4px" }}>
               <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
             </button>
           </div>
 
           {loading ? (
-            <div style={{ textAlign: "center", padding: "30px", color: "var(--text-muted)" }}>
-              <RefreshCw size={20} className="animate-spin" style={{ margin: "0 auto 8px auto" }} />
-              <p style={{ fontSize: "0.8125rem" }}>Loading tickets...</p>
+            <div style={{ textAlign: "center", padding: "30px" }}>
+              <FlexiLoading size="sm" text={tr.common.loading} />
             </div>
           ) : tickets.length === 0 ? (
             <div style={{ textAlign: "center", padding: "32px 10px", color: "var(--text-muted)" }}>
               <MessageSquare size={28} style={{ margin: "0 auto 8px auto" }} />
-              <p style={{ fontSize: "0.875rem", marginBottom: "12px" }}>No tickets opened yet.</p>
+              <p style={{ fontSize: "0.875rem", marginBottom: "12px" }}>
+                {lang === "bn" ? "এখনো কোনো টিকিট খোলা হয়নি।" : "No tickets opened yet."}
+              </p>
               <button onClick={() => setShowNewModal(true)} className="btn btn-outline btn-sm">
-                Open a Ticket
+                {lang === "bn" ? "টিকিট তৈরি করুন" : "Open a Ticket"}
               </button>
             </div>
           ) : (
@@ -156,26 +177,26 @@ function AppSupportContent() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <span style={{ fontSize: "0.75rem", fontWeight: "700", color: "var(--text-muted)" }}>
+                    <span style={{ fontSize: "0.75rem", fontWeight: "600", color: "var(--text-muted)" }}>
                       {t.ticket_id}
                     </span>
                     <span style={{
                       fontSize: "0.6875rem",
-                      fontWeight: "700",
+                      fontWeight: "600",
                       padding: "2px 6px",
                       borderRadius: "var(--radius-full)",
                       backgroundColor: t.status === "RESOLVED" ? "var(--status-approved-bg)" : "var(--status-processing-bg)",
                       color: t.status === "RESOLVED" ? "var(--status-approved-text)" : "var(--status-processing-text)",
                     }}>
-                      {t.status}
+                      {t.status === "RESOLVED" ? (lang === "bn" ? "সমাধানকৃত" : "RESOLVED") : (lang === "bn" ? "চলমান" : "OPEN")}
                     </span>
                   </div>
-                  <div style={{ fontWeight: "700", fontSize: "0.875rem", color: "var(--text-primary)", marginBottom: "4px" }}>
+                  <div style={{ fontWeight: "600", fontSize: "0.875rem", color: "var(--text-primary)", marginBottom: "4px" }}>
                     {t.subject}
                   </div>
                   {t.order_id && (
                     <div style={{ fontSize: "0.75rem", color: "var(--ft-green)" }}>
-                      Order: {t.order_id}
+                      {lang === "bn" ? `অর্ডার: ${t.order_id}` : `Order: ${t.order_id}`}
                     </div>
                   )}
                 </div>
@@ -191,16 +212,17 @@ function AppSupportContent() {
               {/* Thread Header */}
               <div style={{ borderBottom: "1px solid var(--border-light)", paddingBottom: "16px", marginBottom: "20px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h2 style={{ fontSize: "1.25rem", fontWeight: "800", color: "var(--text-primary)" }}>
+                  <h2 style={{ fontSize: "1.25rem", fontWeight: "600", color: "var(--text-primary)" }}>
                     {selectedTicket.subject}
                   </h2>
                   <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                    Category: {selectedTicket.category.replace(/_/g, " ")}
+                    {lang === "bn" ? "বিভাগ: " : "Category: "}{getCategoryLabel(selectedTicket.category)}
                   </span>
                 </div>
                 {selectedTicket.order_id && (
                   <div style={{ fontSize: "0.875rem", color: "var(--text-secondary)", marginTop: "4px" }}>
-                    Linked Order ID: <strong style={{ color: "var(--ft-green)" }}>{selectedTicket.order_id}</strong>
+                    {lang === "bn" ? "যুক্ত অর্ডার আইডি: " : "Linked Order ID: "}
+                    <span style={{ fontWeight: "600", color: "var(--ft-green)" }}>{selectedTicket.order_id}</span>
                   </div>
                 )}
               </div>
@@ -221,8 +243,9 @@ function AppSupportContent() {
                         padding: "12px 16px",
                       }}
                     >
-                      <div style={{ fontSize: "0.6875rem", fontWeight: "700", color: isStaff ? "var(--text-muted)" : "#166534", marginBottom: "4px" }}>
-                        {isStaff ? "FlexiTaka Support Desk" : "You (Customer)"} • {new Date(m.created_at).toLocaleTimeString()}
+                      <div style={{ fontSize: "0.6875rem", fontWeight: "600", color: isStaff ? "var(--text-muted)" : "#166534", marginBottom: "4px" }}>
+                        {isStaff ? (lang === "bn" ? "FlexiTaka সাপোর্ট টিম" : "FlexiTaka Support Desk") : (lang === "bn" ? "আপনি (গ্রাহক)" : "You (Customer)")} •{" "}
+                        {lang === "bn" ? toBnDigits(new Date(m.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })) : new Date(m.created_at).toLocaleTimeString()}
                       </div>
                       <p style={{ fontSize: "0.9375rem", color: "var(--text-primary)", margin: 0, lineHeight: 1.5 }}>
                         {m.message}
@@ -236,7 +259,7 @@ function AppSupportContent() {
               <form onSubmit={handleSendReply} style={{ display: "flex", gap: "12px" }}>
                 <input
                   type="text"
-                  placeholder="Type a message or additional reference..."
+                  placeholder={lang === "bn" ? "বার্তা বা অতিরিক্ত রেফারেন্স লিখুন..." : "Type a message or additional reference..."}
                   value={replyMessage}
                   onChange={(e) => setReplyMessage(e.target.value)}
                   className="form-input"
@@ -245,14 +268,18 @@ function AppSupportContent() {
                 />
                 <button type="submit" className="btn btn-primary" disabled={submitting || !replyMessage.trim()}>
                   <Send size={16} />
-                  <span>Send</span>
+                  <span>{lang === "bn" ? "পাঠান" : "Send"}</span>
                 </button>
               </form>
             </div>
           ) : (
             <div style={{ textAlign: "center", margin: "auto", color: "var(--text-muted)" }}>
               <Headphones size={40} style={{ margin: "0 auto 12px auto" }} />
-              <p>Select a ticket from the left or create a new support ticket.</p>
+              <p>
+                {lang === "bn"
+                  ? "বাম পাশ থেকে একটি টিকিট নির্বাচন করুন অথবা নতুন টিকিট তৈরি করুন।"
+                  : "Select a ticket from the left or create a new support ticket."}
+              </p>
             </div>
           )}
         </div>
@@ -271,29 +298,31 @@ function AppSupportContent() {
           padding: "20px"
         }}>
           <div className="card" style={{ maxWidth: "500px", width: "100%", padding: "32px", backgroundColor: "#FFFFFF" }}>
-            <h3 style={{ fontSize: "1.25rem", fontWeight: "800", marginBottom: "16px" }}>
-              Open Customer Support Ticket
+            <h3 style={{ fontSize: "1.25rem", fontWeight: "600", marginBottom: "16px" }}>
+              {lang === "bn" ? "নতুন কাস্টমার সাপোর্ট টিকিট" : "Open Customer Support Ticket"}
             </h3>
             <form onSubmit={handleCreateTicket}>
               <div className="form-group">
-                <label className="form-label">Category</label>
+                <label className="form-label">{lang === "bn" ? "বিভাগ" : "Category"}</label>
                 <select
                   className="form-input"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
-                  <option value="ORDER_STATUS">Order Verification Delay</option>
-                  <option value="PAYMENT_ISSUE">Payment / TrxID Issue</option>
-                  <option value="OPERATOR_ISSUE">Operator USSD Transfer Failure</option>
-                  <option value="GENERAL">General Inquiries</option>
+                  <option value="ORDER_STATUS">{lang === "bn" ? "অর্ডার যাচাই বিলম্ব" : "Order Verification Delay"}</option>
+                  <option value="PAYMENT_ISSUE">{lang === "bn" ? "পেমেন্ট / TrxID সমস্যা" : "Payment / TrxID Issue"}</option>
+                  <option value="OPERATOR_ISSUE">{lang === "bn" ? "অপারেটর USSD ট্রান্সফার ব্যর্থতা" : "Operator USSD Transfer Failure"}</option>
+                  <option value="GENERAL">{lang === "bn" ? "সাধারণ অনুসন্ধান" : "General Inquiries"}</option>
                 </select>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Linked Order ID (Optional)</label>
+                <label className="form-label">
+                  {lang === "bn" ? "যুক্ত অর্ডার আইডি (ঐচ্ছিক)" : "Linked Order ID (Optional)"}
+                </label>
                 <input
                   type="text"
-                  placeholder="e.g. FT-108249"
+                  placeholder={tSupport.orderIdPlaceholder}
                   value={orderId}
                   onChange={(e) => setOrderId(e.target.value)}
                   className="form-input"
@@ -301,10 +330,10 @@ function AppSupportContent() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Subject</label>
+                <label className="form-label">{tSupport.subjectLabel}</label>
                 <input
                   type="text"
-                  placeholder="Summary of your question..."
+                  placeholder={lang === "bn" ? "আপনার প্রশ্নের সংক্ষিপ্ত শিরোনাম..." : "Summary of your question..."}
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                   className="form-input"
@@ -313,10 +342,10 @@ function AppSupportContent() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Your Message</label>
+                <label className="form-label">{tSupport.messageLabel}</label>
                 <textarea
                   rows={4}
-                  placeholder="Provide your transaction details, operator TrxID, or question..."
+                  placeholder={tSupport.messagePlaceholder}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   className="form-input"
@@ -331,14 +360,14 @@ function AppSupportContent() {
                   onClick={() => setShowNewModal(false)}
                   className="btn btn-outline"
                 >
-                  Cancel
+                  {tr.common.actions.cancel}
                 </button>
                 <button
                   type="submit"
                   className="btn btn-primary"
                   disabled={submitting || !subject.trim() || !message.trim()}
                 >
-                  {submitting ? "Opening..." : "Submit Ticket"}
+                  {submitting ? tr.common.loading : tSupport.btnSendTicket}
                 </button>
               </div>
             </form>
@@ -351,7 +380,7 @@ function AppSupportContent() {
 
 export default function AppSupportPage() {
   return (
-    <React.Suspense fallback={<div className="container" style={{ padding: "40px", textAlign: "center" }}>Loading Support Desk...</div>}>
+    <React.Suspense fallback={<div className="container" style={{ padding: "40px", textAlign: "center" }}>Loading...</div>}>
       <AppSupportContent />
     </React.Suspense>
   );

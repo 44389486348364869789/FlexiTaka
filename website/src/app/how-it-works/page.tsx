@@ -1,18 +1,25 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, ShieldAlert, Smartphone, Wallet, Zap } from "lucide-react";
+import { ArrowRight, ShieldAlert, Zap } from "lucide-react";
+import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function HowItWorksPage() {
+  const { isBn } = useLanguage();
+
   return (
     <div style={{ backgroundColor: "var(--bg-main)", minHeight: "100vh", paddingBottom: "80px" }}>
       {/* Page Header */}
       <div style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid var(--border-light)", padding: "48px 0" }}>
         <div className="container text-center">
-          <h1 style={{ fontSize: "2.5rem", fontWeight: "900", color: "var(--text-primary)", marginBottom: "12px" }}>
-            How FlexiTaka Works
+          <h1 style={{ fontSize: "2.5rem", fontWeight: "700", color: "var(--text-primary)", marginBottom: "12px" }}>
+            {isBn ? "কীভাবে FlexiTaka কাজ করে" : "How FlexiTaka Works"}
           </h1>
           <p style={{ fontSize: "1.125rem", color: "var(--text-secondary)", maxWidth: "620px", margin: "0 auto" }}>
-            A complete, transparent guide to converting your mobile airtime balance to cash or sending discounted airtime recharges in Bangladesh.
+            {isBn
+              ? "বাংলাদেশে মোবাইল এয়ারটাইম ব্যালেন্স ক্যাশ আউট ও সাশ্রয়ী রিচার্জের সম্পূর্ণ ও স্বচ্ছ গাইডলাইন।"
+              : "A complete, transparent guide to converting your mobile airtime balance to cash or sending discounted airtime recharges in Bangladesh."}
           </p>
         </div>
       </div>
@@ -27,16 +34,18 @@ export default function HowItWorksPage() {
             color: "var(--ft-green-active)",
             borderRadius: "var(--radius-sm)",
             fontSize: "0.8125rem",
-            fontWeight: "700",
+            fontWeight: "600",
             marginBottom: "16px"
           }}>
-            WORKFLOW 1
+            {isBn ? "ওয়ার্কফ্লো ১" : "WORKFLOW 1"}
           </div>
-          <h2 style={{ fontSize: "1.75rem", fontWeight: "800", color: "var(--text-primary)", marginBottom: "16px" }}>
-            Cash Out SIM Balance to bKash / Nagad / Bank
+          <h2 style={{ fontSize: "1.75rem", fontWeight: "600", color: "var(--text-primary)", marginBottom: "16px" }}>
+            {isBn ? "সিম ব্যালেন্স ক্যাশ আউট (bKash / Nagad / ব্যাংক)" : "Cash Out SIM Balance to bKash / Nagad / Bank"}
           </h2>
           <p style={{ color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: "32px", maxWidth: "780px" }}>
-            FlexiTaka enables you to liquidate eligible prepaid mobile balance using your operator's official balance transfer service. Here is the exact lifecycle of a Cash Out transaction:
+            {isBn
+              ? "অপারেটরের নিজস্ব অফিশিয়াল ব্যালেন্স ট্রান্সফার সেবার মাধ্যমে আপনার অতিরিক্ত প্রিপেইড ব্যালেন্স ক্যাশ করার সম্পূর্ণ ধাপসমূহ:"
+              : "FlexiTaka enables you to liquidate eligible prepaid mobile balance using your operator's official balance transfer service. Here is the exact lifecycle of a Cash Out transaction:"}
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -50,17 +59,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                1
+                {isBn ? "১" : "1"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Get Real-Time Server Quote
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "লাইভ সার্ভার কোটেশন পান" : "Get Real-Time Server Quote"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-                  Select your operator (GP, Robi, or Banglalink), enter your source phone number, and input the amount (৳50 – ৳50,000). The FlexiTaka backend dynamically computes the fee and the exact payout amount you will receive.
+                  {isBn
+                    ? "আপনার অপারেটর (GP, Robi বা Banglalink) নির্বাচন করুন, মোবাইল নম্বর ও পরিমাণ দিন (৳৫০ – ৳৫০,০০০)। স্ক্রিনে তৎক্ষণাৎ নির্দিষ্ট ফি ও প্রাপ্ত টাকার পরিমাণ প্রদর্শিত হবে।"
+                    : "Select your operator (GP, Robi, or Banglalink), enter your source phone number, and input the amount (৳50 – ৳50,000). FlexiTaka securely computes the fee and the exact payout amount you will receive in real time."}
                 </p>
               </div>
             </div>
@@ -75,17 +86,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                2
+                {isBn ? "২" : "2"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Enter Payout Details & Receive Assigned Number
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "পেআউট তথ্য দিন ও রিসিভিং নম্বর পান" : "Enter Payout Details & Receive Assigned Number"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-                  Provide your bKash, Nagad, or Bank account details. Upon order submission, our server automatically assigns an active, least-loaded FlexiTaka receiving SIM number matching your operator.
+                  {isBn
+                    ? "আপনার bKash, Nagad বা ব্যাংক অ্যাকাউন্ট নম্বর দিন। অর্ডার প্লেস করার সাথে সাথে আমাদের সিস্টেম আপনার অপারেটরের একটি সক্রিয় রিসিভিং নম্বর নির্ধারণ করবে।"
+                    : "Provide your bKash, Nagad, or Bank account details. Upon order submission, our server automatically assigns an active, least-loaded FlexiTaka receiving SIM number matching your operator."}
                 </p>
               </div>
             </div>
@@ -100,17 +113,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                3
+                {isBn ? "৩" : "3"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Perform Operator Balance Transfer on Your Device
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "হ্যান্ডসেট থেকে ব্যালেন্স ট্রান্সফার করুন" : "Perform Operator Balance Transfer on Your Device"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5, marginBottom: "12px" }}>
-                  Open your phone's dialer or official telecom app to transfer the balance to our assigned number:
+                  {isBn
+                    ? "আপনার মোবাইল থেকে নির্ধারিত রিসিভিং নম্বরে ব্যালেন্স পাঠান:"
+                    : "Open your phone's dialer or official telecom app to transfer the balance to our assigned number:"}
                 </p>
                 <div style={{
                   background: "var(--bg-main)",
@@ -120,7 +135,9 @@ export default function HowItWorksPage() {
                   fontSize: "0.9375rem",
                   lineHeight: 1.6
                 }}>
-                  Use your operator's official balance transfer option in <strong>MyGP</strong>, <strong>MyRobi</strong>, <strong>MyBL</strong>, or the operator's official USSD channel.
+                  {isBn
+                    ? "আপনার অপারেটরের অফিশিয়াল ব্যালেন্স ট্রান্সফার অপশন (MyGP, MyRobi, MyBL অ্যাপ) অথবা নির্ধারিত অফিশিয়াল USSD চ্যানেল ডায়াল করুন।"
+                    : "Use your operator's official balance transfer option in MyGP, MyRobi, MyBL, or the operator's official USSD channel."}
                 </div>
               </div>
             </div>
@@ -135,17 +152,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                4
+                {isBn ? "৪" : "4"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Submit Transaction Reference & Verification
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "TrxID প্রমাণ জমা ও দ্রুত যাচাই" : "Submit Transaction Reference & Verification"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-                  Enter the confirmation SMS TrxID and optionally upload a screenshot. Our verifier checks the incoming balance on the receiving handset and approves the order.
+                  {isBn
+                    ? "অপারেটরের প্রাপ্ত কনফার্মেশন SMS TrxID লিখুন এবং চাইলে একটি স্ক্রিনশট আপলোড করুন। আমাদের টিম রিসিভিং সিম চেক করে তাৎক্ষণিক অনুমোদন দেবে।"
+                    : "Enter the confirmation SMS TrxID and optionally upload a screenshot. Our verifier checks the incoming balance on the receiving handset and approves the order."}
                 </p>
               </div>
             </div>
@@ -160,17 +179,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                5
+                {isBn ? "৫" : "5"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Instant Mobile Wallet Payout
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "তাৎক্ষণিক মোবাইল ওয়ালেট পেআউট" : "Instant Mobile Wallet Payout"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-                  Finance dispatches the agreed net payout directly to your bKash, Nagad, or Bank account. The order is stamped COMPLETED on your live tracking page.
+                  {isBn
+                    ? "যাচাই সম্পন্ন হওয়ার সাথে সাথে আপনার bKash, Nagad বা ব্যাংক অ্যাকাউন্টে নির্দিষ্ট টাকা পাঠিয়ে দেওয়া হবে।"
+                    : "Finance dispatches the agreed net payout directly to your bKash, Nagad, or Bank account. The order is stamped COMPLETED on your live tracking page."}
                 </p>
               </div>
             </div>
@@ -178,7 +199,7 @@ export default function HowItWorksPage() {
 
           <div style={{ marginTop: "32px" }}>
             <Link href="/app/cashout" className="btn btn-primary">
-              <span>Start Cash Out Now</span>
+              <span>{isBn ? "ক্যাশ আউট শুরু করুন" : "Start Cash Out Now"}</span>
               <ArrowRight size={16} />
             </Link>
           </div>
@@ -193,16 +214,18 @@ export default function HowItWorksPage() {
             color: "#B45309",
             borderRadius: "var(--radius-sm)",
             fontSize: "0.8125rem",
-            fontWeight: "700",
+            fontWeight: "600",
             marginBottom: "16px"
           }}>
-            WORKFLOW 2
+            {isBn ? "ওয়ার্কফ্লো ২" : "WORKFLOW 2"}
           </div>
-          <h2 style={{ fontSize: "1.75rem", fontWeight: "800", color: "var(--text-primary)", marginBottom: "16px" }}>
-            Discounted Airtime Recharge
+          <h2 style={{ fontSize: "1.75rem", fontWeight: "600", color: "var(--text-primary)", marginBottom: "16px" }}>
+            {isBn ? "ডিসকাউন্টেড এয়ারটাইম রিচার্জ" : "Discounted Airtime Recharge"}
           </h2>
           <p style={{ color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: "32px", maxWidth: "780px" }}>
-            Save money every time you top up your mobile phone or family members' phones across Bangladesh.
+            {isBn
+              ? "বাংলাদেশে যেকোনো মোবাইল নম্বরে এয়ারটাইম রিচার্জে প্রতিটি লেনদেনে সরাসরি ৫% সাশ্রয় করুন।"
+              : "Save money every time you top up your mobile phone or family members' phones across Bangladesh."}
           </p>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
@@ -216,17 +239,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                1
+                {isBn ? "১" : "1"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Select Operator & Recharge Amount
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "অপারেটর ও রিচার্জের পরিমাণ দিন" : "Select Operator & Recharge Amount"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-                  Enter the recipient mobile number and the desired airtime value. The system displays your instant cashback discount and the exact reduced amount you pay.
+                  {isBn
+                    ? "কাঙ্ক্ষিত মোবাইল নম্বর ও রিচার্জের পরিমাণ লিখুন। সাথে সাথে আপনার ৫% ছাড় এবং মোট প্রদেয় টাকার হিসাব দেখতে পাবেন।"
+                    : "Enter the recipient mobile number and the desired airtime value. The system displays your instant cashback discount and the exact reduced amount you pay."}
                 </p>
               </div>
             </div>
@@ -241,17 +266,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                2
+                {isBn ? "২" : "2"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Pay via bKash or Nagad
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "bKash বা Nagad-এ পেমেন্ট করুন" : "Pay via bKash or Nagad"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-                  Send the discounted payment to the official FlexiTaka merchant/agent account displayed on screen and enter your transaction ID (TrxID).
+                  {isBn
+                    ? "স্ক্রিনে প্রদর্শিত FlexiTaka অ্যাকাউন্টে ছাড়কৃত টাকা পাঠান এবং পেমেন্ট TrxID ইনপুট দিন।"
+                    : "Send the discounted payment to the official FlexiTaka merchant/agent account displayed on screen and enter your transaction ID (TrxID)."}
                 </p>
               </div>
             </div>
@@ -266,17 +293,19 @@ export default function HowItWorksPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontWeight: "700",
+                fontWeight: "600",
                 flexShrink: 0
               }}>
-                3
+                {isBn ? "৩" : "3"}
               </div>
               <div>
-                <h3 style={{ fontSize: "1.125rem", fontWeight: "700", marginBottom: "6px" }}>
-                  Automated / Staff Top-Up Dispatch
+                <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
+                  {isBn ? "তাৎক্ষণিক এয়ারটাইম ডেলিভারি" : "Automated / Staff Top-Up Dispatch"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
-                  As soon as payment is confirmed, operations staff sends the full recharge value from our retail SIM pool straight to the destination mobile number.
+                  {isBn
+                    ? "পেমেন্ট নিশ্চিত হওয়ার সাথে সাথে নির্দিষ্ট নম্বরে সম্পূর্ণ রিচার্জ ফেস ভ্যালু স্বয়ংক্রিয়ভাবে পৌঁছে যায়।"
+                    : "As soon as payment is confirmed, operations staff sends the full recharge value from our retail SIM pool straight to the destination mobile number."}
                 </p>
               </div>
             </div>
@@ -284,7 +313,7 @@ export default function HowItWorksPage() {
 
           <div style={{ marginTop: "32px" }}>
             <Link href="/app/recharge" className="btn btn-secondary">
-              <span>Start Discounted Recharge</span>
+              <span>{isBn ? "ডিসকাউন্টেড রিচার্জ শুরু করুন" : "Start Discounted Recharge"}</span>
               <Zap size={16} />
             </Link>
           </div>
@@ -302,11 +331,13 @@ export default function HowItWorksPage() {
         }}>
           <ShieldAlert size={24} color="#1D4D8F" style={{ flexShrink: 0, marginTop: "2px" }} />
           <div>
-            <h4 style={{ fontSize: "1rem", fontWeight: "700", color: "#1E3A8A", marginBottom: "6px" }}>
-              Compliance & Non-Custodial Integrity
+            <h4 style={{ fontSize: "1rem", fontWeight: "600", color: "#1E3A8A", marginBottom: "6px" }}>
+              {isBn ? "কমপ্লায়েন্স ও নন-কাস্টডিয়াল নিশ্চয়তা" : "Compliance & Non-Custodial Integrity"}
             </h4>
             <p style={{ fontSize: "0.875rem", color: "#1E40AF", lineHeight: 1.6, margin: 0 }}>
-              FlexiTaka does not access, control, or intercept your telecom account. All balance transfers are executed voluntarily by you using official telecom menus. We do not store, request, or verify telecom PINs. Operator transfer limits and charges are regulated by BTRC and the respective mobile operators.
+              {isBn
+                ? "FlexiTaka কখনোই আপনার টেলিকম অ্যাকাউন্টের অ্যাক্সেস নেয় না। সকল ব্যালেন্স ট্রান্সফার আপনি নিজে টেলিকমের অফিশিয়াল অপশন ব্যবহার করে সম্পন্ন করেন। আমরা কখনোই আপনার সিম পিন চাই না বা সংরক্ষণ করি না। ব্যালেন্স ট্রান্সফারের দৈনিক সীমা BTRC ও সংশ্লিষ্ট মোবাইল অপারেটর কর্তৃক নির্ধারিত হয়।"
+                : "FlexiTaka does not access, control, or intercept your telecom account. All balance transfers are executed voluntarily by you using official telecom menus. We do not store, request, or verify telecom PINs. Operator transfer limits and charges are regulated by BTRC and the respective mobile operators."}
             </p>
           </div>
         </div>

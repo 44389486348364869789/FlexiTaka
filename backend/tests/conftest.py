@@ -17,6 +17,9 @@ os.environ["APP_ENV"] = "test"
 os.environ["MONGODB_DATABASE"] = "flexitaka_test"
 os.environ["STORAGE_ROOT"] = "/root/flexitaka/backend/uploads_test"
 
+from app.core.config import settings
+settings.APP_ENV = "test"
+
 from app.core.constants import AdminRole
 from app.core.security import create_jwt_token
 from app.db.indexes import ensure_indexes

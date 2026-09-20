@@ -12,7 +12,7 @@ class RequestOtpRequest(BaseModel):
 
 class RequestOtpResponse(BaseModel):
     success: bool = True
-    message: str = "OTP sent successfully"
+    message: str = "Verification code sent successfully."
     phone: str
     expires_in_seconds: int = 300
 
@@ -20,6 +20,7 @@ class RequestOtpResponse(BaseModel):
 class VerifyOtpRequest(BaseModel):
     phone: str
     otp: str = Field(..., min_length=4, max_length=6)
+    guest_session_id: Optional[str] = None
 
 
 class TokenResponse(BaseModel):
@@ -28,6 +29,7 @@ class TokenResponse(BaseModel):
     user_id: str
     phone: Optional[str] = None
     role: str = "USER"
+    orders_linked: int = 0
 
 
 class AdminLoginRequest(BaseModel):

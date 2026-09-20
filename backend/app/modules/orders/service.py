@@ -54,8 +54,24 @@ class OrdersService:
         recharge_details = None
         if order.get("service_type") == "CASH_OUT":
             cashout_details = await self.cashout_repo.get_by_order_id(order_id)
+            if cashout_details:
+                cashout_details = {
+                    **cashout_details,
+                    "_id": str(cashout_details.get("_id")) if cashout_details.get("_id") else None,
+                    "source_amount_bdt": str(poisha_to_bdt(cashout_details.get("source_amount", 0))),
+                    "platform_fee_amount_bdt": str(poisha_to_bdt(cashout_details.get("platform_fee_amount", 0))),
+                    "payout_amount_bdt": str(poisha_to_bdt(cashout_details.get("payout_amount", 0))),
+                }
         elif order.get("service_type") == "RECHARGE":
             recharge_details = await self.recharge_repo.get_by_order_id(order_id)
+            if recharge_details:
+                recharge_details = {
+                    **recharge_details,
+                    "_id": str(recharge_details.get("_id")) if recharge_details.get("_id") else None,
+                    "recharge_amount_bdt": str(poisha_to_bdt(recharge_details.get("recharge_amount", 0))),
+                    "discount_amount_bdt": str(poisha_to_bdt(recharge_details.get("discount_amount", 0))),
+                    "customer_pay_amount_bdt": str(poisha_to_bdt(recharge_details.get("customer_pay_amount", 0))),
+                }
 
         events = await self.orders_repo.get_order_events(order_id)
 
@@ -70,6 +86,7 @@ class OrdersService:
             "service_type": order["service_type"],
             "user_id": order.get("user_id"),
             "guest_session_id": order.get("guest_session_id"),
+            "linked_from_guest_session_id": order.get("linked_from_guest_session_id"),
             "operator_code": order["operator_code"],
             "mobile_number": order["mobile_number"],
             "amount_bdt": poisha_to_bdt(amount_poisha),
@@ -117,6 +134,7 @@ class OrdersService:
                 "amount_poisha": amt_poisha,
                 "currency": o.get("currency", "BDT"),
                 "status": o["status"],
+                "linked_from_guest_session_id": o.get("linked_from_guest_session_id"),
                 "created_at": o.get("created_at"),
                 "updated_at": o.get("updated_at")
             })

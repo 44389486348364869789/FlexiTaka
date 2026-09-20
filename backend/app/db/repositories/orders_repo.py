@@ -134,3 +134,51 @@ class OrdersRepository(BaseRepository):
             if "_id" in d:
                 d["_id"] = str(d["_id"])
         return docs
+
+    async def link_guest_orders_to_user(
+        self,
+        guest_session_id: str,
+        user_id: str
+    ) -> int:
+        """
+        Atomically link all unlinked orders owned by guest_session_id to user_id.
+        Only updates orders where guest_session_id matches AND user_id is None.
+        Ensures idempotency and complete race-condition safety.
+        Returns the count of orders linked.
+        """
+        filter_query = {
+            "guest_session_id": guest_session_id,
+            "user_id": None
+        }
+
+        # Query eligible orders first to log timeline events
+        eligible_orders = await self.find_many(filter_query)
+        if not eligible_orders:
+            return 0
+
+        now = self.utcnow()
+        update_doc = {
+            "$set": {
+                "user_id": user_id,
+                "linked_from_guest_session_id": guest_session_id,
+                "linked_at": now,
+                "updated_at": now
+            }
+        }
+
+        # Atomic bulk update
+        result = await self.collection.update_many(filter_query, update_doc)
+        modified_count = result.modified_count
+
+        # Record timeline event for each linked order
+        for o in eligible_orders:
+            await self.record_order_event(
+                order_id=o["order_id"],
+                previous_status=o.get("status"),
+                new_status=o.get("status"),
+                actor_type=ActorType.USER,
+                actor_id=user_id,
+                note=f"Order linked from guest session {guest_session_id} to user {user_id}"
+            )
+
+        return modified_count

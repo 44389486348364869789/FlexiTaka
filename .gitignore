@@ -53,3 +53,10 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Scratch & Media Processing Artifacts
+loader_frames/
+loader_scratch/
+transparent_frames/
+*.png.bak
+scratch/

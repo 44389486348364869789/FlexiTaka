@@ -17,6 +17,7 @@ class OrderSummaryResponse(BaseModel):
     amount_poisha: int
     currency: str = "BDT"
     status: str
+    linked_from_guest_session_id: Optional[str] = None
     created_at: str
     updated_at: str
 
@@ -36,6 +37,7 @@ class OrderDetailResponse(BaseModel):
     service_type: ServiceType
     user_id: Optional[str] = None
     guest_session_id: Optional[str] = None
+    linked_from_guest_session_id: Optional[str] = None
     operator_code: OperatorCode
     mobile_number: str
     amount_bdt: Decimal

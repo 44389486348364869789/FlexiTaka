@@ -11,6 +11,8 @@ from app.core.exceptions import ForbiddenException, UnauthorizedException
 from app.core.permissions import role_has_permission
 from app.core.security import decode_jwt_token
 from app.db.mongodb import get_database
+from app.db.repositories.audit_repo import AuditRepository
+from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.users_repo import UsersRepository
 
 security = HTTPBearer(auto_error=False)
@@ -22,6 +24,14 @@ async def get_db() -> AsyncIOMotorDatabase:
 
 async def get_users_repo(db: AsyncIOMotorDatabase = Depends(get_db)) -> UsersRepository:
     return UsersRepository(db)
+
+
+async def get_orders_repo(db: AsyncIOMotorDatabase = Depends(get_db)) -> OrdersRepository:
+    return OrdersRepository(db)
+
+
+async def get_audit_repo(db: AsyncIOMotorDatabase = Depends(get_db)) -> AuditRepository:
+    return AuditRepository(db)
 
 
 async def get_current_token_payload(

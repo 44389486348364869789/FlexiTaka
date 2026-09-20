@@ -46,3 +46,10 @@ class SupportRepository(BaseRepository):
             set_data["resolved_at"] = self.utcnow()
         res = await self.collection.update_one({"ticket_id": ticket_id}, {"$set": set_data})
         return res.modified_count > 0
+
+    async def link_guest_tickets_to_user(self, guest_session_id: str, user_id: str) -> int:
+        res = await self.collection.update_many(
+            {"guest_session_id": guest_session_id, "user_id": None},
+            {"$set": {"user_id": user_id, "linked_from_guest_session_id": guest_session_id, "updated_at": self.utcnow()}}
+        )
+        return res.modified_count
