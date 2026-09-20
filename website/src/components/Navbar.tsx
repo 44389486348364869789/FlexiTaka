@@ -27,15 +27,24 @@ export default function Navbar() {
     }
   }, [pathname]);
 
-  // Lock body scroll when mobile menu drawer is open
+  // Lock body scroll and listen for Escape key when mobile menu drawer is open
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    };
+
     if (mobileMenuOpen) {
       document.body.style.overflow = "hidden";
+      window.addEventListener("keydown", handleKeyDown);
     } else {
       document.body.style.overflow = "";
     }
+
     return () => {
       document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
     };
   }, [mobileMenuOpen]);
 
@@ -125,7 +134,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Right Slide-in Drawer & Dark Backdrop Overlay */}
+      {/* Mobile Compact Right Drawer & Subtle Dark/Blur Overlay */}
       {mobileMenuOpen && (
         <>
           <div
@@ -140,7 +149,7 @@ export default function Navbar() {
                 <img
                   src="/images/flexitaka-logo.png"
                   alt="FlexiTaka"
-                  style={{ height: "26px", width: "auto", display: "block" }}
+                  style={{ height: "24px", width: "auto", display: "block" }}
                 />
               </Link>
               <button
@@ -148,13 +157,13 @@ export default function Navbar() {
                 className="mobile-drawer-close-btn"
                 aria-label={nav.close}
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            {/* Drawer Body Content */}
+            {/* Drawer Body */}
             <div className="mobile-drawer-body">
-              {/* Primary Service Actions */}
+              {/* Primary Service CTAs */}
               <div className="mobile-drawer-cta-grid">
                 <Link
                   href="/app/cashout"
@@ -162,14 +171,15 @@ export default function Navbar() {
                   className="btn btn-primary"
                   style={{
                     justifyContent: "center",
-                    height: "44px",
+                    height: "42px",
                     fontSize: "0.875rem",
                     fontWeight: "600",
                     borderRadius: "var(--radius-md)",
+                    boxShadow: "none",
                   }}
                 >
                   <span>{nav.cashOut}</span>
-                  <ArrowRight size={15} />
+                  <ArrowRight size={14} />
                 </Link>
 
                 <Link
@@ -178,7 +188,7 @@ export default function Navbar() {
                   className="btn btn-outline"
                   style={{
                     justifyContent: "center",
-                    height: "44px",
+                    height: "42px",
                     fontSize: "0.875rem",
                     fontWeight: "600",
                     borderRadius: "var(--radius-md)",
@@ -193,7 +203,7 @@ export default function Navbar() {
               {/* Navigation Links Group */}
               <div className="mobile-drawer-section">
                 <div className="mobile-drawer-section-title">
-                  {isBn ? "ন্যাভিগেশন" : "Navigation"}
+                  {isBn ? "ন্যাভিগেশন" : "NAVIGATION"}
                 </div>
                 <div className="mobile-drawer-nav-list">
                   {navLinks.map((link) => {
@@ -214,10 +224,10 @@ export default function Navbar() {
 
               <div className="mobile-drawer-divider" />
 
-              {/* Customer Portal Group */}
+              {/* Account Group */}
               <div className="mobile-drawer-section">
                 <div className="mobile-drawer-section-title">
-                  {nav.portal}
+                  {isBn ? "অ্যাকাউন্ট" : "ACCOUNT"}
                 </div>
                 <Link
                   href="/app"
@@ -225,7 +235,7 @@ export default function Navbar() {
                   className="mobile-drawer-account-card"
                 >
                   <div className="mobile-drawer-account-info">
-                    <User size={18} color="var(--ft-green)" />
+                    <User size={16} color="var(--ft-green-active)" />
                     <span className="mobile-drawer-account-name">
                       {isLoggedIn
                         ? (isBn ? "আমার অ্যাকাউন্ট" : "My Account")
