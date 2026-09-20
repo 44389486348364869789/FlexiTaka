@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { api, getStoredAuthToken, getStoredGuestSessionId } from "@/lib/api";
@@ -9,6 +10,7 @@ import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [guestId, setGuestId] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -16,6 +18,13 @@ export default function Navbar() {
   const nav = tr.common.nav;
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    // Automatically close drawer on route change
+    setMobileMenuOpen(false);
+
     // Check session status
     const token = getStoredAuthToken();
     setIsLoggedIn(!!token);
@@ -115,7 +124,7 @@ export default function Navbar() {
 
           {/* Mobile Menu Toggle Button */}
           <button
-            onClick={() => setMobileMenuOpen(true)}
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             style={{
               display: "none",
               background: "none",
@@ -126,16 +135,16 @@ export default function Navbar() {
               lineHeight: 1,
             }}
             className="mobile-toggle"
-            aria-label={nav.menu}
+            aria-label={mobileMenuOpen ? nav.close : nav.menu}
             aria-expanded={mobileMenuOpen}
           >
-            <Menu size={22} />
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Compact Right Drawer & Subtle Dark/Blur Overlay */}
-      {mobileMenuOpen && (
+      {/* Mobile Compact Right Drawer & Subtle Dark/Blur Overlay (Rendered into document.body via Portal) */}
+      {mounted && mobileMenuOpen && createPortal(
         <>
           <div
             className="mobile-nav-backdrop"
@@ -149,15 +158,16 @@ export default function Navbar() {
                 <img
                   src="/images/flexitaka-logo.png"
                   alt="FlexiTaka"
-                  style={{ height: "24px", width: "auto", display: "block" }}
+                  style={{ height: "20px", width: "auto", display: "block" }}
                 />
               </Link>
               <button
+                type="button"
                 onClick={() => setMobileMenuOpen(false)}
                 className="mobile-drawer-close-btn"
                 aria-label={nav.close}
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
@@ -171,15 +181,16 @@ export default function Navbar() {
                   className="btn btn-primary"
                   style={{
                     justifyContent: "center",
-                    height: "42px",
-                    fontSize: "0.875rem",
+                    height: "38px",
+                    fontSize: "0.8125rem",
                     fontWeight: "600",
                     borderRadius: "var(--radius-md)",
                     boxShadow: "none",
+                    padding: "0 8px",
                   }}
                 >
                   <span>{nav.cashOut}</span>
-                  <ArrowRight size={14} />
+                  <ArrowRight size={13} />
                 </Link>
 
                 <Link
@@ -188,12 +199,13 @@ export default function Navbar() {
                   className="btn btn-outline"
                   style={{
                     justifyContent: "center",
-                    height: "42px",
-                    fontSize: "0.875rem",
+                    height: "38px",
+                    fontSize: "0.8125rem",
                     fontWeight: "600",
                     borderRadius: "var(--radius-md)",
                     borderColor: "var(--border-light)",
                     color: "var(--text-primary)",
+                    padding: "0 8px",
                   }}
                 >
                   <span>{nav.recharge}</span>
@@ -251,7 +263,8 @@ export default function Navbar() {
               </div>
             </div>
           </aside>
-        </>
+        </>,
+        document.body
       )}
     </header>
   );

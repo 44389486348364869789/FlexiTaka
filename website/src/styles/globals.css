@@ -565,7 +565,7 @@ button, input, select, textarea {
   border-bottom: 1px solid var(--border-light);
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1000;
 }
 
 /* Responsive Grid & Layout Overrides */
@@ -1345,54 +1345,64 @@ button, input, select, textarea {
   }
 }
 
-/* Mobile Navigation Drawer & Backdrop */
+/* Mobile Navigation Drawer & Backdrop (Rendered via Portal to document.body) */
 .mobile-nav-backdrop {
   position: fixed;
-  inset: 0;
-  background-color: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  z-index: 9998;
-  animation: fadeIn 0.2s ease-out;
+  top: var(--header-height);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: calc(100vh - var(--header-height));
+  height: calc(100dvh - var(--header-height));
+  background-color: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 998;
+  animation: fadeIn 0.18s ease-out;
+  pointer-events: auto;
 }
 
 .mobile-nav-panel {
   position: fixed;
-  top: 0;
+  top: var(--header-height);
   right: 0;
   bottom: 0;
   width: 82vw;
-  max-width: 320px;
-  height: 100vh;
-  height: 100dvh;
+  max-width: 310px;
+  height: calc(100vh - var(--header-height));
+  height: calc(100dvh - var(--header-height));
   background-color: #FFFFFF;
-  z-index: 9999;
+  z-index: 999;
   display: flex;
   flex-direction: column;
-  box-shadow: -10px 0 30px rgba(15, 23, 42, 0.18);
-  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -6px 8px 24px rgba(15, 23, 42, 0.12);
+  animation: slideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  border-left: 1px solid var(--border-light);
+  pointer-events: auto;
 }
 
 .mobile-drawer-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-light);
   background: #FFFFFF;
   position: sticky;
   top: 0;
   z-index: 2;
+  flex-shrink: 0;
 }
 
 .mobile-drawer-close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: var(--bg-main);
   border: 1px solid var(--border-light);
@@ -1407,27 +1417,27 @@ button, input, select, textarea {
 }
 
 .mobile-drawer-body {
-  padding: 20px;
+  padding: 14px 16px 20px 16px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   flex: 1;
 }
 
 .mobile-drawer-cta-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mobile-drawer-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .mobile-drawer-section-title {
-  font-size: 0.75rem;
+  font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1445,8 +1455,8 @@ button, input, select, textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
-  font-size: 0.9375rem;
+  padding: 9px 12px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
   text-decoration: none;
@@ -1463,14 +1473,14 @@ button, input, select, textarea {
 .mobile-drawer-divider {
   height: 1px;
   background-color: var(--border-light);
-  margin: 2px 0;
+  margin: 0;
 }
 
 .mobile-drawer-account-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background-color: var(--bg-main);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -1485,11 +1495,11 @@ button, input, select, textarea {
 .mobile-drawer-account-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mobile-drawer-account-name {
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -1499,7 +1509,7 @@ button, input, select, textarea {
   font-weight: 600;
   color: var(--ft-green-active);
   background-color: var(--ft-green-subtle);
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: 6px;
 }
 
@@ -1515,6 +1525,13 @@ button, input, select, textarea {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+@media (min-width: 841px) {
+  .mobile-nav-backdrop,
+  .mobile-nav-panel {
+    display: none !important;
+  }
 }
 
 /* Footer Link & Responsive Polish */
