@@ -70,7 +70,7 @@ export default function Navbar() {
     <header className="header-glass">
       <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "var(--header-height)" }}>
         {/* Brand Logo */}
-        <Link href="/" style={{ display: "flex", alignItems: "center", textDecoration: "none", flexShrink: 0 }}>
+        <Link href="/" className="brand-logo-link" style={{ display: "flex", alignItems: "center", textDecoration: "none", flexShrink: 0 }}>
           <img
             src="/images/flexitaka-logo.png"
             alt="FlexiTaka - SIM Balance to Cash"
@@ -124,7 +124,8 @@ export default function Navbar() {
 
           {/* Mobile Menu Toggle Button */}
           <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
             style={{
               display: "none",
               background: "none",
@@ -135,10 +136,9 @@ export default function Navbar() {
               lineHeight: 1,
             }}
             className="mobile-toggle"
-            aria-label={mobileMenuOpen ? nav.close : nav.menu}
-            aria-expanded={mobileMenuOpen}
+            aria-label={nav.menu}
           >
-            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            <Menu size={22} />
           </button>
         </div>
       </div>
@@ -154,7 +154,7 @@ export default function Navbar() {
           <aside className="mobile-nav-panel" role="dialog" aria-modal="true" aria-label={nav.menu}>
             {/* Drawer Header */}
             <div className="mobile-drawer-header">
-              <Link href="/" onClick={() => setMobileMenuOpen(false)} style={{ display: "flex", alignItems: "center" }}>
+              <Link href="/" onClick={() => setMobileMenuOpen(false)} className="brand-logo-link" style={{ display: "flex", alignItems: "center" }}>
                 <img
                   src="/images/flexitaka-logo.png"
                   alt="FlexiTaka"

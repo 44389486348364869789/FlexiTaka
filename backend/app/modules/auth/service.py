@@ -363,6 +363,10 @@ class AuthService:
             await r.delete(otp_ref_key)
             await r.delete(attempts_key)
             await r.delete(cooldown_key)
+            # Store verified status for this phone and guest session (24h validity)
+            await r.set(f"phone_verified:{normalized}", "1", ex=86400)
+            if guest_session_id:
+                await r.set(f"phone_verified:{guest_session_id}:{normalized}", "1", ex=86400)
 
         # 5. Create or find user
         user = await self.users_repo.get_by_phone(normalized)

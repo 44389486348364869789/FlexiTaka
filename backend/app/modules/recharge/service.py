@@ -5,10 +5,12 @@ Authoritatively orchestrates Discounted Airtime Recharge orders.
 
 from decimal import Decimal
 from typing import Any, Dict, Optional
-from app.core.constants import ActorType, RechargeStatus, ServiceType, bdt_to_poisha
+from app.core.config import settings
+from app.core.constants import ActorType, ErrorCode, RechargeStatus, ServiceType, bdt_to_poisha
 from app.core.exceptions import ValidationException
 from app.core.logging import logger
 from app.core.security import generate_order_id, generate_tracking_token
+from app.db.redis import get_redis
 from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.recharge_repo import RechargeRepository
 from app.modules.auth.service import normalize_bd_phone
@@ -38,6 +40,21 @@ class RechargeService:
             raise ValidationException("Either user_id or guest_session_id is required")
 
         dest_phone = normalize_bd_phone(recharge_mobile_number)
+
+        # Enforce mobile OTP verification if enabled
+        if getattr(settings, "REQUIRE_ORDER_OTP", False):
+            r = get_redis()
+            is_verified = False
+            if r:
+                if guest_session_id and await r.get(f"phone_verified:{guest_session_id}:{dest_phone}"):
+                    is_verified = True
+                elif await r.get(f"phone_verified:{dest_phone}"):
+                    is_verified = True
+            if not is_verified:
+                raise ValidationException(
+                    "মোবাইল নম্বর যাচাই করা আবশ্যক : Mobile number must be verified via OTP before placing an order",
+                    code=ErrorCode.OTP_REQUIRED
+                )
 
         # 1. Authoritative Pricing Quote
         quote = await self.pricing_service.calculate_recharge_quote(operator_code, recharge_amount_bdt)

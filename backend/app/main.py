@@ -26,16 +26,34 @@ from app.db.mongodb import close_mongo_connection, connect_to_mongo, get_databas
 from app.db.redis import close_redis_connection, connect_to_redis
 
 
+from app.api.v1.gateway import router as gateway_router
+from app.modules.operators.session_manager import OperatorSessionService
+from app.modules.transfers.engine import TransferEngine
+from app.modules.transfers.worker import TransferWorker
+
+_transfer_worker = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    global _transfer_worker
     logger.info("Initializing FlexiTaka Backend API...")
     await connect_to_mongo()
     await connect_to_redis()
     db = get_database()
     await ensure_indexes(db)
+
+    # Start background transfer worker
+    session_service = OperatorSessionService(db)
+    transfer_engine = TransferEngine(db, session_service)
+    _transfer_worker = TransferWorker(db, transfer_engine)
+    _transfer_worker.start()
+
     logger.info("FlexiTaka Backend API startup complete. Ready for traffic.")
     yield
     logger.info("Shutting down FlexiTaka Backend API...")
+    if _transfer_worker:
+        await _transfer_worker.stop()
     await close_redis_connection()
     await close_mongo_connection()
     logger.info("Shutdown complete.")
@@ -171,3 +189,7 @@ async def root():
 
 # Mount API v1 router
 app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
+
+# Direct Public Route for iPhone Shortcut Webhook: https://flexitaka.online/api/gateway/verify-payment-ios-shortcut-method
+app.include_router(gateway_router, prefix="/api/gateway")
+

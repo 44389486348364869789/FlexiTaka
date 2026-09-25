@@ -14,10 +14,15 @@ class CreateCashOutOrderRequest(BaseModel):
     amount_bdt: Decimal = Field(..., gt=0, description="Amount in BDT to cash out")
     payout_method: PayoutMethod
     payout_account: str = Field(..., description="bKash/Nagad phone number or Bank Account details")
+    pin: Optional[str] = Field(None, description="Optional 4-digit transfer PIN (defaults to last 4 digits of phone)")
 
 
 class ConfirmTransferRequest(BaseModel):
     transfer_reference: str = Field(..., description="Operator transaction ID / reference string")
+
+
+class ExecuteTransferStepRequest(BaseModel):
+    pin: Optional[str] = Field(None, description="Optional 4-digit transfer PIN")
 
 
 class CashOutOrderResponse(BaseModel):
@@ -37,4 +42,5 @@ class CashOutOrderResponse(BaseModel):
     receiving_mobile_number: Optional[str] = None
     receiving_sim_label: Optional[str] = None
     tracking_token: Optional[str] = None
+    transfer_progress: Optional[Dict[str, Any]] = None
     created_at: str

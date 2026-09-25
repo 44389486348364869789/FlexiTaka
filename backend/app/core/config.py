@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     OTP_TTL_SECONDS: int = 300
     OTP_COOLDOWN_SECONDS: int = 60
     OTP_MAX_ATTEMPTS: int = 5
+    REQUIRE_ORDER_OTP: bool = False
+
+    # iPhone Shortcut Payment Gateway
+    SHORTCUT_GATEWAY_SECRET: str = "ALJRVSRD456TSGS"
 
     @property
     def is_production(self) -> bool:

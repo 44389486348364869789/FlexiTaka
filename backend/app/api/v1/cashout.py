@@ -1,6 +1,7 @@
 """
 Cash Out Router.
-Handles quote confirmation, order creation, transfer confirmation, and proof upload.
+Handles quote confirmation, order creation, automated chunk transfer execution,
+live transfer progress tracking, and fallback confirmation.
 """
 
 from typing import Any, Dict, Optional
@@ -17,7 +18,8 @@ from app.db.repositories.proofs_repo import ProofsRepository
 from app.db.repositories.recharge_repo import RechargeRepository
 from app.db.repositories.sims_repo import ReceivingSimsRepository
 from app.modules.cashout.schemas import (
-    CashOutOrderResponse, ConfirmTransferRequest, CreateCashOutOrderRequest
+    CashOutOrderResponse, ConfirmTransferRequest, CreateCashOutOrderRequest,
+    ExecuteTransferStepRequest
 )
 from app.modules.cashout.service import CashOutService
 from app.modules.orders.schemas import OrderDetailResponse
@@ -49,21 +51,21 @@ async def create_cashout_order(
     cashout_repo = CashOutRepository(db)
     sims_repo = ReceivingSimsRepository(db)
 
-    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service)
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
     user_id = user["sub"] if user else None
 
     result = await service.create_cashout_order(
         operator_code=payload.operator_code,
         source_mobile_number=payload.source_mobile_number,
-        amount_bdt=payload.amount_bdt,
+        amount_bdt=str(payload.amount_bdt),
         payout_method=payload.payout_method,
         payout_account=payload.payout_account,
+        pin=payload.pin,
         user_id=user_id,
         guest_session_id=guest_session_id
     )
 
     if idempotency_key:
-        # Convert Decimals to string for json serialization in idempotency cache
         cacheable = result.copy()
         for k, v in cacheable.items():
             if hasattr(v, "__str__") and not isinstance(v, (int, bool, str, type(None))):
@@ -71,6 +73,44 @@ async def create_cashout_order(
         await save_cached_idempotency(idempotency_key, 201, cacheable)
 
     return result
+
+
+@router.get("/orders/{order_id}/progress")
+async def get_transfer_progress(
+    order_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Returns real-time balance transfer chunk progress, remaining cooldown seconds, and ledger history.
+    """
+    pricing_repo = PricingRepository(db)
+    pricing_service = PricingService(pricing_repo)
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    sims_repo = ReceivingSimsRepository(db)
+
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
+    return await service.get_transfer_progress(order_id)
+
+
+@router.post("/orders/{order_id}/transfer-step")
+async def execute_transfer_step(
+    order_id: str,
+    payload: Optional[ExecuteTransferStepRequest] = None,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Executes next chunk in the transfer plan for this order.
+    """
+    pricing_repo = PricingRepository(db)
+    pricing_service = PricingService(pricing_repo)
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    sims_repo = ReceivingSimsRepository(db)
+
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
+    pin = payload.pin if payload else None
+    return await service.execute_transfer_step(order_id, pin=pin)
 
 
 @router.get("/orders/{order_id}", response_model=OrderDetailResponse)
@@ -118,7 +158,6 @@ async def upload_transfer_proof(
         uploaded_by_id=uploader_id
     )
 
-    # Link proof to cashout order
     await cashout_repo.attach_proof(order_id, uploaded["proof_id"])
     return uploaded
 
@@ -137,7 +176,7 @@ async def confirm_transfer(
     pricing_repo = PricingRepository(db)
     pricing_service = PricingService(pricing_repo)
 
-    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service)
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
     actor_id = user["sub"] if user else (guest_session_id or "customer")
 
     updated = await service.confirm_transfer_and_proof(

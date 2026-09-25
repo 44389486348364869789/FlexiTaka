@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from app.api.v1.admin import router as admin_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.cashout import router as cashout_router
+from app.api.v1.gateway import router as gateway_router
 from app.api.v1.guests import router as guests_router
 from app.api.v1.notifications import router as notifications_router
 from app.api.v1.operators import router as operators_router
@@ -32,3 +33,4 @@ api_v1_router.include_router(proofs_router)
 api_v1_router.include_router(support_router)
 api_v1_router.include_router(notifications_router)
 api_v1_router.include_router(admin_router)
+api_v1_router.include_router(gateway_router, prefix="/gateway")

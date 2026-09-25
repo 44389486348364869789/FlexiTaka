@@ -159,4 +159,30 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
         IndexModel([("key", ASCENDING)], unique=True)
     ])
 
-    logger.info("All 20 MongoDB collection indexes successfully confirmed.")
+    # 21. sms_transactions (iPhone Shortcut Payment Gateway)
+    await db.sms_transactions.create_indexes([
+        IndexModel([("provider", ASCENDING), ("transaction_id", ASCENDING)], unique=True),
+        IndexModel([("transaction_id", ASCENDING)]),
+        IndexModel([("matched_order_id", ASCENDING)]),
+        IndexModel([("verification_status", ASCENDING)]),
+        IndexModel([("created_at", DESCENDING)])
+    ])
+
+    # 22. transfer_ledger (Reusable Chunked Balance Transfer Engine)
+    await db.transfer_ledger.create_indexes([
+        IndexModel([("transfer_id", ASCENDING)], unique=True),
+        IndexModel([("order_id", ASCENDING), ("sequence_number", ASCENDING)], unique=True),
+        IndexModel([("order_id", ASCENDING)]),
+        IndexModel([("status", ASCENDING)]),
+        IndexModel([("next_retry_at", ASCENDING)]),
+        IndexModel([("created_at", DESCENDING)])
+    ])
+
+    # 23. operator_sessions (Secure Server-Side Operator Sessions)
+    await db.operator_sessions.create_indexes([
+        IndexModel([("session_id", ASCENDING)], unique=True),
+        IndexModel([("msisdn", ASCENDING), ("operator_code", ASCENDING)], unique=True),
+        IndexModel([("updated_at", DESCENDING)])
+    ])
+
+    logger.info("All MongoDB collection indexes successfully confirmed.")

@@ -1,10 +1,14 @@
 """
-Cash Out Business Flow Service.
-Authoritatively orchestrates the SIM Balance -> Cash lifecycle.
+Authoritative Cash Out Business Flow Service.
+Automated SIM Balance -> Liquid Payout Workflow.
+Integrates Reusable Transfer Engine for automated chunked balance transfers from customer SIM.
 """
 
 from decimal import Decimal
+import time
 from typing import Any, Dict, Optional
+from motor.motor_asyncio import AsyncIOMotorDatabase
+from app.core.config import settings
 from app.core.constants import (
     ActorType, CashOutStatus, ErrorCode, ServiceType,
     bdt_to_poisha, poisha_to_bdt
@@ -15,8 +19,10 @@ from app.core.security import generate_order_id, generate_tracking_token
 from app.db.repositories.cashout_repo import CashOutRepository
 from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.sims_repo import ReceivingSimsRepository
-from app.modules.auth.service import normalize_bd_phone
+from app.modules.operators.resolver import normalize_msisdn
+from app.modules.operators.session_manager import OperatorSessionService
 from app.modules.pricing.service import PricingService
+from app.modules.transfers.engine import TransferEngine
 
 
 class CashOutService:
@@ -25,27 +31,33 @@ class CashOutService:
         orders_repo: OrdersRepository,
         cashout_repo: CashOutRepository,
         sims_repo: ReceivingSimsRepository,
-        pricing_service: PricingService
+        pricing_service: PricingService,
+        db: Optional[AsyncIOMotorDatabase] = None
     ):
         self.orders_repo = orders_repo
         self.cashout_repo = cashout_repo
         self.sims_repo = sims_repo
         self.pricing_service = pricing_service
+        self.db = db if db is not None else orders_repo.db
+        self.session_service = OperatorSessionService(self.db)
+        self.transfer_engine = TransferEngine(self.db, self.session_service)
 
     async def create_cashout_order(
         self,
         operator_code: str,
         source_mobile_number: str,
-        amount_bdt: Decimal,
+        amount_bdt: str,
         payout_method: str,
         payout_account: str,
+        pin: Optional[str] = None,
         user_id: Optional[str] = None,
         guest_session_id: Optional[str] = None
     ) -> Dict[str, Any]:
         if not user_id and not guest_session_id:
             raise ValidationException("Either user_id or guest_session_id is required", code=ErrorCode.AUTH_REQUIRED)
 
-        source_phone = normalize_bd_phone(source_mobile_number)
+        source_phone = normalize_msisdn(source_mobile_number)
+        num_amount = int(float(amount_bdt))
 
         # 1. Authoritative Pricing Quote
         quote = await self.pricing_service.calculate_cashout_quote(operator_code, amount_bdt)
@@ -57,6 +69,7 @@ class CashOutService:
         sim_label = receiving_sim.get("label", f"{operator_code} Central Receiver") if receiving_sim else f"{operator_code} Receiver"
 
         order_id = generate_order_id()
+        transfer_pin = pin or source_phone[-4:]  # Standard requirement: last 4 digits of SIM number
 
         pricing_snapshot = {
             "source_amount_bdt": str(quote["source_amount_bdt"]),
@@ -75,15 +88,18 @@ class CashOutService:
             "service_type": ServiceType.CASH_OUT,
             "user_id": user_id,
             "guest_session_id": guest_session_id,
-            "operator_code": operator_code,
+            "operator_code": operator_code.upper(),
             "mobile_number": source_phone,
             "amount": quote["source_amount_poisha"],
             "currency": "BDT",
-            "status": CashOutStatus.WAITING_FOR_TRANSFER,  # Immediately ready for operator transfer
+            "status": CashOutStatus.WAITING_FOR_TRANSFER.value,
             "pricing_snapshot": pricing_snapshot,
             "metadata": {
                 "receiving_mobile_number": receiving_number,
-                "receiving_sim_id": receiving_sim_id
+                "receiving_sim_id": receiving_sim_id,
+                "transfer_pin": transfer_pin,
+                "payout_method": payout_method,
+                "payout_account": payout_account
             }
         }
         saved_order = await self.orders_repo.create_order(order_doc)
@@ -91,7 +107,7 @@ class CashOutService:
         # 4. Create Cash Out Details
         cashout_doc = {
             "order_id": order_id,
-            "source_operator": operator_code,
+            "source_operator": operator_code.upper(),
             "source_mobile_number": source_phone,
             "source_amount": quote["source_amount_poisha"],
             "platform_fee_amount": quote["platform_fee_amount_poisha"],
@@ -100,20 +116,45 @@ class CashOutService:
             "payout_method": payout_method,
             "payout_account": payout_account,
             "receiving_sim_id": receiving_sim_id,
-            "verification_status": "PENDING"
+            "verification_status": "AUTOMATED_TRANSFER"
         }
         await self.cashout_repo.insert_one(cashout_doc)
+
+        # 5. Initialize Automated Chunked Transfer Plan
+        await self.transfer_engine.initialize_transfer_plan(
+            order_id=order_id,
+            service_type=ServiceType.CASH_OUT,
+            operator_code=operator_code,
+            source_number=source_phone,
+            destination_number=receiving_number,
+            total_amount_bdt=num_amount
+        )
+
+        # 6. Execute First Chunk if active session exists
+        session_data = await self.session_service.get_session(source_phone, operator_code)
+        transfer_result = {}
+        if session_data:
+            # Advance order status to TRANSFER_IN_PROGRESS
+            await self.orders_repo.update_one(
+                {"order_id": order_id},
+                {"$set": {"status": "TRANSFER_IN_PROGRESS"}}
+            )
+            transfer_result = await self.transfer_engine.execute_next_chunk(
+                order_id=order_id,
+                pin=transfer_pin,
+                session_data=session_data
+            )
 
         tracking_token = generate_tracking_token(order_id, guest_session_id) if guest_session_id else None
 
         logger.info(
-            "Cash out order created: %s | Amount: %s | Receiving SIM: %s",
-            order_id, quote["source_amount_bdt"], receiving_number
+            "Cash out order created: %s | Amount: %s | Receiving SIM: %s | Transfer Status: %s",
+            order_id, quote["source_amount_bdt"], receiving_number, transfer_result
         )
 
         return {
             "order_id": order_id,
-            "status": CashOutStatus.WAITING_FOR_TRANSFER,
+            "status": "TRANSFER_IN_PROGRESS" if session_data else CashOutStatus.WAITING_FOR_TRANSFER.value,
             "operator_code": operator_code,
             "source_mobile_number": source_phone,
             "source_amount_bdt": quote["source_amount_bdt"],
@@ -128,8 +169,27 @@ class CashOutService:
             "receiving_mobile_number": receiving_number,
             "receiving_sim_label": sim_label,
             "tracking_token": tracking_token,
+            "transfer_progress": transfer_result,
             "created_at": saved_order["created_at"]
         }
+
+    async def get_transfer_progress(self, order_id: str) -> Dict[str, Any]:
+        return await self.transfer_engine.get_transfer_progress(order_id)
+
+    async def execute_transfer_step(self, order_id: str, pin: Optional[str] = None) -> Dict[str, Any]:
+        order = await self.orders_repo.get_by_order_id(order_id)
+        if not order:
+            raise NotFoundException(f"Order {order_id} not found")
+
+        source_phone = order["mobile_number"]
+        operator_code = order["operator_code"]
+        transfer_pin = pin or order.get("metadata", {}).get("transfer_pin") or source_phone[-4:]
+
+        session_data = await self.session_service.get_session(source_phone, operator_code)
+        if not session_data:
+            raise ValidationException(f"No operator session for {source_phone}. Please authenticate.", code="OPERATOR_AUTH_REQUIRED")
+
+        return await self.transfer_engine.execute_next_chunk(order_id, transfer_pin, session_data)
 
     async def confirm_transfer_and_proof(
         self,
@@ -138,41 +198,22 @@ class CashOutService:
         proof_id: Optional[str] = None,
         actor_id: str = "customer"
     ) -> Dict[str, Any]:
-        """
-        User confirms balance transfer with reference / proof.
-        Advances state: WAITING_FOR_TRANSFER -> TRANSFER_RECEIVED -> UNDER_VERIFICATION
-        """
+        """Manual confirmation fallback."""
         order = await self.orders_repo.get_by_order_id(order_id)
         if not order:
             raise NotFoundException(f"Order {order_id} not found")
 
-        current_status = order["status"]
-        if current_status != CashOutStatus.WAITING_FOR_TRANSFER:
-            raise ConflictException(f"Order {order_id} is in status '{current_status}', expected WAITING_FOR_TRANSFER")
-
-        # Update cashout details
         if proof_id:
             await self.cashout_repo.attach_proof(order_id, proof_id, transfer_reference)
         else:
             await self.cashout_repo.update_one({"order_id": order_id}, {"$set": {"transfer_reference": transfer_reference}})
 
-        # Transition to TRANSFER_RECEIVED then UNDER_VERIFICATION
-        await self.orders_repo.transition_status(
+        updated = await self.orders_repo.transition_status(
             order_id=order_id,
-            expected_current_status=CashOutStatus.WAITING_FOR_TRANSFER,
+            expected_current_status=order["status"],
             new_status=CashOutStatus.TRANSFER_RECEIVED,
             actor_type=ActorType.USER,
             actor_id=actor_id,
             note=f"Transfer reference provided: {transfer_reference}"
         )
-
-        updated = await self.orders_repo.transition_status(
-            order_id=order_id,
-            expected_current_status=CashOutStatus.TRANSFER_RECEIVED,
-            new_status=CashOutStatus.UNDER_VERIFICATION,
-            actor_type=ActorType.SYSTEM,
-            actor_id="system",
-            note="Order submitted for staff verification"
-        )
-
         return updated

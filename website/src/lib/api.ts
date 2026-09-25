@@ -178,13 +178,57 @@ export const api = {
     });
   },
 
-  // 4. Cash Out Orders
+  // 4. Operator Authentication & Balance (New Automated Flow)
+  async requestOperatorOtp(phone: string): Promise<{ success: boolean; operator_code: string; reference_id?: string; message: string }> {
+    return request<{ success: boolean; operator_code: string; reference_id?: string; message: string }>("/operators/auth/request-otp", {
+      method: "POST",
+      body: JSON.stringify({ phone }),
+    });
+  },
+
+  async verifyOperatorOtp(
+    phone: string,
+    otp: string,
+    referenceId?: string
+  ): Promise<{ success: boolean; access_token: string; user_id: string; phone: string; operator_code: string; balance_bdt?: number; expiry_date?: string }> {
+    const guestId = getStoredGuestSessionId();
+    const res = await request<{
+      success: boolean;
+      access_token: string;
+      user_id: string;
+      phone: string;
+      operator_code: string;
+      balance_bdt?: number;
+      expiry_date?: string;
+    }>("/operators/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({
+        phone,
+        otp,
+        reference_id: referenceId,
+        guest_session_id: guestId || undefined,
+      }),
+    });
+    if (res.access_token) {
+      setStoredAuthToken(res.access_token);
+    }
+    return res;
+  },
+
+  async getLiveBalance(phone: string): Promise<{ success: boolean; phone: string; operator_code: string; balance_bdt: number; raw_balance: string; expiry_date?: string }> {
+    return request<{ success: boolean; phone: string; operator_code: string; balance_bdt: number; raw_balance: string; expiry_date?: string }>(
+      `/operators/balance/live?phone=${encodeURIComponent(phone)}`
+    );
+  },
+
+  // 5. Cash Out Orders
   async createCashOutOrder(params: {
     operator_code: string;
     source_mobile_number: string;
     amount_bdt: string;
     payout_method: PayoutMethod;
     payout_account: string;
+    pin?: string;
   }): Promise<CashOutOrderCreated> {
     const idempotencyKey = generateUUID();
     return request<CashOutOrderCreated>(
@@ -197,6 +241,21 @@ export const api = {
         "Idempotency-Key": idempotencyKey,
       }
     );
+  },
+
+  async getCashOutTransferProgress(orderId: string): Promise<any> {
+    return request<any>(`/cashout/orders/${orderId}/progress`);
+  },
+
+  async executeTransferStep(orderId: string, pin?: string): Promise<any> {
+    return request<any>(`/cashout/orders/${orderId}/transfer-step`, {
+      method: "POST",
+      body: JSON.stringify({ pin }),
+    });
+  },
+
+  async getRechargeTransferProgress(orderId: string): Promise<any> {
+    return request<any>(`/recharge/orders/${orderId}/progress`);
   },
 
   async confirmCashOutTransfer(

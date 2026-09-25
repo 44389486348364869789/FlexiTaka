@@ -11,101 +11,43 @@ export default function Footer() {
   const { isBn } = useLanguage();
 
   return (
-    <footer
-      style={{
-        backgroundColor: "#FFFFFF",
-        borderTop: "1px solid var(--border-card)",
-        paddingTop: "50px",
-        paddingBottom: "32px",
-        marginTop: "auto",
-      }}
-      className="site-footer"
-    >
-      <div className="container">
-        {/* Top 4-Column Grid (1 Brand + 3 Category Columns) */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr 1fr",
-            gap: "36px",
-            marginBottom: "36px",
-          }}
-          className="footer-grid"
-        >
-          {/* Brand Info Column */}
+    <footer className="site-footer">
+      <div className="container footer-container">
+        {/* Top 4-Column Grid: Brand | Services | Web App | Trust & Legal */}
+        <div className="footer-grid">
+          {/* Column 1: Brand Info */}
           <div className="footer-col-brand">
-            <div style={{ marginBottom: "14px" }}>
-              <Link href="/" style={{ textDecoration: "none", display: "inline-block" }}>
-                <img
-                  src="/images/flexitaka-logo.png"
-                  alt="FlexiTaka - Your SIM Balance, More Value"
-                  className="brand-logo"
-                  style={{ height: "38px", width: "auto", display: "block" }}
-                />
-              </Link>
-            </div>
-            <p
-              style={{
-                color: "var(--text-secondary)",
-                fontSize: "0.875rem",
-                lineHeight: 1.6,
-                maxWidth: "340px",
-                marginBottom: "14px",
-              }}
-            >
+            <Link href="/" style={{ textDecoration: "none", display: "inline-block" }}>
+              <img
+                src="/images/flexitaka-logo.png"
+                alt="FlexiTaka - Your SIM Balance, More Value"
+                className="footer-brand-logo"
+              />
+            </Link>
+
+            <p className="footer-brand-desc">
               {isBn
                 ? "আপনার সিম ব্যালেন্স, আরও বেশি মূল্য। অব্যবহৃত প্রিপেইড ব্যালেন্সকে মোবাইল ওয়ালেট ক্যাশে রূপান্তর করুন অথবা এয়ারটাইম টপ-আপে নিশ্চিত ডিসকাউন্ট উপভোগ করুন।"
                 : "Your SIM balance, more value. Convert unused prepaid balance to mobile wallet cash or enjoy instant discounts on airtime top-ups."}
             </p>
 
             {/* Zero Telecom PIN Policy Badge */}
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "6px 12px",
-                background: "var(--ft-green-subtle)",
-                border: "1px solid #BBF7D0",
-                borderRadius: "var(--radius-sm)",
-                fontSize: "0.8125rem",
-                color: "#166534",
-                fontWeight: "600",
-                marginBottom: "14px",
-              }}
-            >
-              <ShieldCheck size={16} style={{ flexShrink: 0 }} />
+            <div className="footer-brand-badge">
+              <ShieldCheck size={15} style={{ flexShrink: 0 }} />
               <span>{isBn ? "জিরো টেলিকম পিন/পাসওয়ার্ড পলিসি" : "Zero Telecom PIN/Password Policy"}</span>
             </div>
 
             {/* Direct Contact Line */}
-            <div
-              style={{
-                fontSize: "0.8125rem",
-                color: "var(--text-secondary)",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                marginBottom: "14px",
-              }}
-            >
+            <div className="footer-contact-line">
               <Mail size={14} color="var(--ft-green)" style={{ flexShrink: 0 }} />
               <span>{isBn ? "সরাসরি যোগাযোগ" : "Direct Contact"}: </span>
-              <a
-                href="mailto:Contact@flexitaka.com"
-                style={{
-                  color: "var(--ft-green-active)",
-                  fontWeight: "600",
-                  textDecoration: "none",
-                  overflowWrap: "anywhere",
-                }}
-              >
+              <a href="mailto:Contact@flexitaka.com" className="footer-contact-email">
                 Contact@flexitaka.com
               </a>
             </div>
 
             {/* Social Links */}
-            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <div className="footer-social-row">
               <a
                 href="https://www.facebook.com/FlexiTaka0/"
                 target="_blank"
@@ -143,32 +85,12 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Column 1: Services */}
+          {/* Column 2: Services */}
           <div className="footer-col">
-            <h4
-              style={{
-                fontSize: "0.875rem",
-                fontWeight: "700",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                color: "var(--text-primary)",
-                marginBottom: "16px",
-              }}
-            >
+            <h4 className="footer-col-title">
               {isBn ? "সার্ভিসসমূহ" : "Services"}
             </h4>
-            <ul
-              style={{
-                listStyle: "none",
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                fontSize: "0.875rem",
-                color: "var(--text-secondary)",
-                padding: 0,
-                margin: 0,
-              }}
-            >
+            <ul className="footer-col-links">
               <li>
                 <Link href="/cash-out" className="footer-link">
                   {isBn ? "ক্যাশ আউট ব্যালেন্স" : "Cash Out Balance"}
@@ -192,32 +114,12 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Column 2: Web App */}
+          {/* Column 3: Web App */}
           <div className="footer-col">
-            <h4
-              style={{
-                fontSize: "0.875rem",
-                fontWeight: "700",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                color: "var(--text-primary)",
-                marginBottom: "16px",
-              }}
-            >
+            <h4 className="footer-col-title">
               {isBn ? "ওয়েব অ্যাপ" : "Web App"}
             </h4>
-            <ul
-              style={{
-                listStyle: "none",
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                fontSize: "0.875rem",
-                color: "var(--text-secondary)",
-                padding: 0,
-                margin: 0,
-              }}
-            >
+            <ul className="footer-col-links">
               <li>
                 <Link href="/app" className="footer-link">
                   {isBn ? "অ্যাপ ড্যাশবোর্ড" : "App Dashboard"}
@@ -241,32 +143,12 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Column 3: Trust & Legal */}
+          {/* Column 4: Trust & Legal */}
           <div className="footer-col">
-            <h4
-              style={{
-                fontSize: "0.875rem",
-                fontWeight: "700",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                color: "var(--text-primary)",
-                marginBottom: "16px",
-              }}
-            >
+            <h4 className="footer-col-title">
               {isBn ? "ট্রাস্ট ও লিগ্যাল" : "Trust & Legal"}
             </h4>
-            <ul
-              style={{
-                listStyle: "none",
-                display: "flex",
-                flexDirection: "column",
-                gap: "10px",
-                fontSize: "0.875rem",
-                color: "var(--text-secondary)",
-                padding: 0,
-                margin: 0,
-              }}
-            >
+            <ul className="footer-col-links">
               <li>
                 <Link href="/about" className="footer-link">
                   {isBn ? "ফ্লেক্সিটাকা পরিচিতি" : "About FlexiTaka"}
@@ -292,25 +174,10 @@ export default function Footer() {
         </div>
 
         {/* Security & Regulatory Advisory Box */}
-        <div
-          style={{
-            backgroundColor: "var(--bg-main)",
-            border: "1px solid var(--border-light)",
-            borderRadius: "var(--radius-sm)",
-            padding: "14px 18px",
-            marginBottom: "16px",
-            fontSize: "0.8125rem",
-            color: "var(--text-muted)",
-            lineHeight: 1.6,
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "10px",
-          }}
-          className="footer-security-advisory"
-        >
+        <div className="footer-security-advisory">
           <ShieldAlert size={16} color="var(--ft-green)" style={{ flexShrink: 0, marginTop: "2px" }} />
           <div>
-            <strong style={{ color: "var(--text-secondary)", fontWeight: "600" }}>
+            <strong className="footer-advisory-title">
               {isBn ? "নিরাপত্তা নির্দেশনা:" : "Important Security Advisory:"}
             </strong>{" "}
             {isBn

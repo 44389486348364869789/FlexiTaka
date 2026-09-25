@@ -55,3 +55,9 @@ class RateLimitException(FlexiTakaException):
 class ServiceUnavailableException(FlexiTakaException):
     def __init__(self, message: str = "Service temporarily unavailable. Please try again later.", code: ErrorCode = ErrorCode.SERVICE_UNAVAILABLE):
         super().__init__(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, code=code, message=message)
+
+
+class ExternalServiceException(FlexiTakaException):
+    def __init__(self, message: str = "External telecom provider failure", code: ErrorCode = ErrorCode.SERVICE_UNAVAILABLE, details: Any = None):
+        super().__init__(status_code=status.HTTP_502_BAD_GATEWAY, code=code, message=message, details=details)
+

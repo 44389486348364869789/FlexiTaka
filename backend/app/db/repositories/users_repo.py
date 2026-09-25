@@ -22,6 +22,9 @@ class UsersRepository(BaseRepository):
     async def get_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
         return await self.find_one({"phone": phone})
 
+    async def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        return await self.insert_one(user_data)
+
     # --- Guest Sessions ---
     async def create_guest_session(self, guest_data: Dict[str, Any]) -> Dict[str, Any]:
         doc = guest_data.copy()

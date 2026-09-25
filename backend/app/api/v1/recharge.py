@@ -1,6 +1,6 @@
 """
 Recharge Router.
-Handles discount quote confirmation and recharge order creation.
+Handles discount quote confirmation, recharge order creation, and live transfer progress.
 """
 
 from typing import Any, Dict, Optional
@@ -14,6 +14,7 @@ from app.db.repositories.cashout_repo import CashOutRepository
 from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.pricing_repo import PricingRepository
 from app.db.repositories.recharge_repo import RechargeRepository
+from app.modules.operators.session_manager import OperatorSessionService
 from app.modules.orders.schemas import OrderDetailResponse
 from app.modules.orders.service import OrdersService
 from app.modules.pricing.service import PricingService
@@ -21,6 +22,7 @@ from app.modules.recharge.schemas import (
     CreateRechargeOrderRequest, RechargeOrderResponse
 )
 from app.modules.recharge.service import RechargeService
+from app.modules.transfers.engine import TransferEngine
 
 router = APIRouter(prefix="/recharge", tags=["Recharge"])
 
@@ -62,6 +64,19 @@ async def create_recharge_order(
         await save_cached_idempotency(idempotency_key, 201, cacheable)
 
     return result
+
+
+@router.get("/orders/{order_id}/progress")
+async def get_recharge_transfer_progress(
+    order_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Returns live outgoing recharge transfer progress, chunk status, and completion details.
+    """
+    session_service = OperatorSessionService(db)
+    transfer_engine = TransferEngine(db, session_service)
+    return await transfer_engine.get_transfer_progress(order_id)
 
 
 @router.get("/orders/{order_id}", response_model=OrderDetailResponse)

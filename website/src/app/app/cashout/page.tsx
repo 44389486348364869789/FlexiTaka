@@ -9,8 +9,10 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  CheckCircle2,
   Copy,
   RefreshCw,
+  ShieldCheck,
   Upload,
 } from "lucide-react";
 import OperatorSelector from "@/components/OperatorSelector";
@@ -20,6 +22,7 @@ import LiveQuoteCard from "@/components/LiveQuoteCard";
 import WalletSelector from "@/components/WalletSelector";
 import StepIndicator from "@/components/StepIndicator";
 import TrustNote from "@/components/TrustNote";
+import OtpVerificationModal from "@/components/OtpVerificationModal";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 function CashOutWizardContent() {
@@ -52,6 +55,15 @@ function CashOutWizardContent() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // OTP Verification State
+  const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpRefId, setOtpRefId] = useState<string | undefined>(undefined);
+  const [simBalance, setSimBalance] = useState<number | null>(null);
+  const [transferProgress, setTransferProgress] = useState<any>(null);
+  const [transferPin, setTransferPin] = useState<string>("");
+
   // Copy state
   const [copied, setCopied] = useState(false);
 
@@ -69,6 +81,7 @@ function CashOutWizardContent() {
   const isOperatorSelected = Boolean(operator);
   const cleanedPhone = sourcePhone.replace(/[\s\-\+]/g, "").replace(/^88/, "");
   const isPhoneValid = Boolean(cleanedPhone.match(/^01[3-9]\d{8}$/));
+  const isPhoneVerified = Boolean(verifiedPhone && verifiedPhone === cleanedPhone);
 
   const numAmount = parseFloat(amount);
   const isAmountValid = !isNaN(numAmount) && numAmount >= 50 && numAmount <= 50000;
@@ -97,6 +110,28 @@ function CashOutWizardContent() {
       amountRef.current?.focus();
     }
   }, [isPhoneValid]);
+
+  // Poll real-time transfer progress when in Step 2
+  useEffect(() => {
+    if (step !== 2 || !createdOrder?.order_id) return;
+    let isCancelled = false;
+
+    const pollProgress = async () => {
+      try {
+        const prog = await api.getCashOutTransferProgress(createdOrder.order_id);
+        if (!isCancelled && prog) {
+          setTransferProgress(prog);
+        }
+      } catch {}
+    };
+
+    pollProgress();
+    const interval = setInterval(pollProgress, 3500);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [step, createdOrder?.order_id]);
 
   // Fetch live quote from backend strictly when inputs are valid
   const updateQuote = async () => {
@@ -147,6 +182,59 @@ function CashOutWizardContent() {
   }, [operator, amount, isAmountValid, lang]);
 
   // Handle Order Creation
+  const handleTriggerOtp = async () => {
+    if (!isPhoneValid) {
+      setActionError(lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Please enter a valid 11-digit Bangladesh mobile number (e.g. 01712345678)");
+      return;
+    }
+    setActionError(null);
+    setOtpSending(true);
+    try {
+      const res = await api.requestOperatorOtp(cleanedPhone);
+      setOtpRefId(res.reference_id);
+      if (res.operator_code && ["GP", "ROBI", "BANGLALINK"].includes(res.operator_code)) {
+        setOperator(res.operator_code as OperatorCode);
+      }
+      setOtpModalOpen(true);
+    } catch (err: any) {
+      try {
+        await api.requestOtp(cleanedPhone);
+        setOtpModalOpen(true);
+      } catch {
+        setActionError(err.message || (lang === "bn" ? "OTP পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে অপেক্ষা করুন।" : "Failed to send OTP. Please wait."));
+      }
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const executeOrderCreation = async (phoneToUse?: string) => {
+    const finalPhone = phoneToUse || cleanedPhone;
+    setSubmitting(true);
+    try {
+      await api.ensureGuestSession();
+      const order = await api.createCashOutOrder({
+        operator_code: operator as OperatorCode,
+        source_mobile_number: finalPhone,
+        amount_bdt: amount,
+        payout_method: payoutMethod,
+        payout_account: payoutAccount.trim(),
+        pin: transferPin || finalPhone.slice(-4),
+      });
+      setCreatedOrder(order);
+      setStep(2);
+    } catch (err: any) {
+      let msg = err.message || (lang === "bn" ? "ক্যাশ আউট অর্ডার তৈরি করতে ব্যর্থ হয়েছে" : "Failed to create Cash Out order");
+      if (msg.includes(" : ")) {
+        const parts = msg.split(" : ");
+        msg = lang === "bn" ? parts[0].trim() : parts[1].trim();
+      }
+      setActionError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleCreateOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionError(null);
@@ -161,6 +249,12 @@ function CashOutWizardContent() {
       return;
     }
 
+    // Enforce OTP verification before allowing order placement
+    if (!isPhoneVerified) {
+      await handleTriggerOtp();
+      return;
+    }
+
     if (!isAmountValid) {
       setActionError(lang === "bn" ? "পরিমাণ অবশ্যই ৳৫০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳50 and ৳50,000");
       return;
@@ -171,22 +265,21 @@ function CashOutWizardContent() {
       return;
     }
 
-    setSubmitting(true);
-    try {
-      await api.ensureGuestSession();
-      const order = await api.createCashOutOrder({
-        operator_code: operator as OperatorCode,
-        source_mobile_number: cleanedPhone,
-        amount_bdt: amount,
-        payout_method: payoutMethod,
-        payout_account: payoutAccount.trim(),
-      });
-      setCreatedOrder(order);
-      setStep(2);
-    } catch (err: any) {
-      setActionError(err.message || (lang === "bn" ? "ক্যাশ আউট অর্ডার তৈরি করতে ব্যর্থ হয়েছে" : "Failed to create Cash Out order"));
-    } finally {
-      setSubmitting(false);
+    await executeOrderCreation();
+  };
+
+  const handleOtpSuccess = async (vPhone: string, authResult?: any) => {
+    setVerifiedPhone(vPhone);
+    setOtpModalOpen(false);
+    if (authResult?.balance_bdt !== undefined && authResult.balance_bdt !== null) {
+      setSimBalance(authResult.balance_bdt);
+    }
+    if (authResult?.operator_code && ["GP", "ROBI", "BANGLALINK"].includes(authResult.operator_code)) {
+      setOperator(authResult.operator_code as OperatorCode);
+    }
+    // If all required fields are filled, auto-submit order
+    if (operator && isAmountValid && payoutAccount.trim()) {
+      await executeOrderCreation(vPhone);
     }
   };
 
@@ -385,9 +478,34 @@ function CashOutWizardContent() {
                   {tCash.senderNumber}
                 </label>
                 {isPhoneValid && (
-                  <span style={{ fontSize: "0.6875rem", color: "var(--ft-green)", fontWeight: "500" }}>
-                    {lang === "bn" ? "সঠিক নম্বর" : "Valid Number"}
-                  </span>
+                  isPhoneVerified ? (
+                    <span style={{ fontSize: "0.75rem", color: "#16A34A", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                      <CheckCircle2 size={13} />
+                      {lang === "bn" ? "যাচাই সম্পন্ন" : "Verified"}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleTriggerOtp}
+                      disabled={otpSending}
+                      style={{
+                        background: "var(--ft-green-subtle)",
+                        border: "1px solid #BBF7D0",
+                        color: "var(--ft-green-active)",
+                        fontSize: "0.6875rem",
+                        fontWeight: "600",
+                        padding: "2px 8px",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                    >
+                      {otpSending ? <RefreshCw size={11} className="spin" /> : <ShieldCheck size={12} />}
+                      <span>{lang === "bn" ? "OTP যাচাই করুন" : "Verify OTP"}</span>
+                    </button>
+                  )
                 )}
               </div>
               <input
@@ -396,13 +514,40 @@ function CashOutWizardContent() {
                 className="form-input"
                 placeholder="01XXXXXXXXX"
                 value={sourcePhone}
-                onChange={(e) => setSourcePhone(e.target.value)}
+                onChange={(e) => {
+                  setSourcePhone(e.target.value);
+                  const newClean = e.target.value.replace(/[\s\-\+]/g, "").replace(/^88/, "");
+                  if (verifiedPhone && verifiedPhone !== newClean) {
+                    setVerifiedPhone(null);
+                  }
+                }}
                 required
                 style={{ height: "44px" }}
               />
               {!isPhoneValid && sourcePhone.length > 0 && (
                 <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", marginTop: "4px" }}>
                   {lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Enter a valid 11-digit Bangladesh mobile number (e.g. 017XXXXXXXX)"}
+                </div>
+              )}
+              {isPhoneVerified && simBalance !== null && (
+                <div style={{
+                  marginTop: "8px",
+                  padding: "8px 12px",
+                  background: "#F0FDF4",
+                  border: "1px solid #BBF7D0",
+                  borderRadius: "var(--radius-sm)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  fontSize: "0.8125rem"
+                }}>
+                  <span style={{ color: "#166534", fontWeight: "500", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <CheckCircle2 size={15} color="#16A34A" />
+                    <span>{lang === "bn" ? "অপারেটর দ্বারা সিম যাচাইকৃত" : "SIM verified via Operator API"}</span>
+                  </span>
+                  <span style={{ color: "var(--ft-green)", fontWeight: "700" }}>
+                    {lang === "bn" ? `বর্তমান ব্যালেন্স: ৳${toBnDigits(simBalance.toFixed(2))}` : `Balance: ৳${simBalance.toFixed(2)}`}
+                  </span>
                 </div>
               )}
             </div>
@@ -526,6 +671,80 @@ function CashOutWizardContent() {
               <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", fontWeight: "400" }}>{lang === "bn" ? "পেআউট" : "Payout"}</div>
               <div style={{ fontSize: "1.125rem", fontWeight: "700", color: "var(--ft-green)" }}>
                 {formatBDT(createdOrder.payout_amount_bdt, { lang })}
+              </div>
+            </div>
+          </div>
+
+          {/* Automated Balance Transfer Live Progress Tracker */}
+          <div style={{
+            backgroundColor: "#FFFFFF",
+            border: transferProgress?.is_completed
+              ? "2px solid #22C55E"
+              : transferProgress?.is_cooldown
+              ? "2px solid #F59E0B"
+              : "1.5px solid var(--ft-green)",
+            borderRadius: "var(--radius-md)",
+            padding: "16px 18px",
+            marginBottom: "16px",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+              <div style={{ marginTop: "2px" }}>
+                {transferProgress?.is_completed ? (
+                  <CheckCircle2 size={24} color="#16A34A" />
+                ) : (
+                  <RefreshCw size={24} color={transferProgress?.is_cooldown ? "#D97706" : "var(--ft-green)"} className={transferProgress?.is_cooldown ? "" : "spin"} />
+                )}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ fontSize: "1rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
+                    {transferProgress?.is_completed
+                      ? (lang === "bn" ? "ব্যালেন্স ট্রান্সফার সম্পন্ন হয়েছে!" : "Balance Transfer Received!")
+                      : transferProgress?.is_cooldown
+                      ? (lang === "bn" ? "অপারেটর কুলডাউন অপেক্ষমান" : "Waiting for Operator Cooldown")
+                      : (lang === "bn" ? "স্বয়ংক্রিয় ব্যালেন্স ট্রান্সফার চলছে..." : "Automatic Transfer In Progress...")}
+                  </h3>
+                  <span style={{
+                    fontSize: "0.6875rem",
+                    fontWeight: "600",
+                    padding: "2px 8px",
+                    borderRadius: "4px",
+                    backgroundColor: transferProgress?.is_completed ? "#DCFCE7" : transferProgress?.is_cooldown ? "#FEF3C7" : "var(--ft-green-subtle)",
+                    color: transferProgress?.is_completed ? "#166534" : transferProgress?.is_cooldown ? "#92400E" : "var(--ft-green-active)"
+                  }}>
+                    {transferProgress?.is_completed ? "TRANSFER_RECEIVED" : transferProgress?.is_cooldown ? "COOLDOWN_ACTIVE" : "TRANSFER_RUNNING"}
+                  </span>
+                </div>
+                <p style={{ margin: "4px 0 0 0", fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                  {transferProgress?.is_completed
+                    ? (lang === "bn" ? "আপনার সিম থেকে সম্পূর্ণ অর্থ সফলভাবে FlexiTaka-তে জমা হয়েছে। পেআউট দ্রুত আপনার অ্যাকাউন্টে পৌঁছে যাবে।" : "Full balance successfully received by FlexiTaka. Payout is being reviewed and processed.")
+                    : transferProgress?.is_cooldown
+                    ? (lang === "bn"
+                        ? `টেলকো অপারেটরের কুলডাউন উইন্ডোর কারণে পরবর্তী ট্রান্সফার অপেক্ষা করছে (${Math.ceil(transferProgress.cooldown_seconds_remaining / 60)} মিনিট বাকি)। সিস্টেমটি স্বয়ক্রিয়ভাবে সম্পন্ন করবে।`
+                        : `Transfer is temporarily waiting for the operator's next allowed transfer window (${Math.ceil(transferProgress.cooldown_seconds_remaining / 60)}m left). The system will continue automatically.`)
+                    : (lang === "bn" ? "সার্ভার স্বয়ংক্রিয়ভাবে অপারেটর API-এর মাধ্যমে ব্যালেন্স স্থানান্তর করছে। অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।" : "Server is automatically transferring balance chunks via operator API. Please wait a moment.")}
+                </p>
+
+                {/* Progress bar */}
+                {transferProgress && transferProgress.total_chunks > 0 && (
+                  <div style={{ marginTop: "12px", background: "var(--bg-subtle)", borderRadius: "var(--radius-sm)", padding: "10px 12px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.75rem", fontWeight: "600", marginBottom: "6px" }}>
+                      <span>{lang === "bn" ? "ট্রান্সফার অগ্রগতি" : "Transfer Progress"}</span>
+                      <span>
+                        {transferProgress.completed_chunks} / {transferProgress.total_chunks} {lang === "bn" ? "ধাপ সম্পন্ন" : "chunks"} ({transferProgress.completed_amount_bdt} / {transferProgress.total_amount_bdt} ৳)
+                      </span>
+                    </div>
+                    <div style={{ width: "100%", height: "6px", background: "#E2E8F0", borderRadius: "999px", overflow: "hidden" }}>
+                      <div style={{
+                        width: `${Math.round((transferProgress.completed_chunks / transferProgress.total_chunks) * 100)}%`,
+                        height: "100%",
+                        background: "var(--ft-green)",
+                        transition: "width 0.4s ease"
+                      }} />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -926,6 +1145,16 @@ function CashOutWizardContent() {
           <TrustNote />
         </form>
       )}
+      {/* OTP Verification Modal */}
+      <OtpVerificationModal
+        isOpen={otpModalOpen}
+        phone={cleanedPhone}
+        onSuccess={handleOtpSuccess}
+        onClose={() => setOtpModalOpen(false)}
+        isOperatorAuth={true}
+        referenceId={otpRefId}
+        expectedLength={operator === "GP" ? 4 : 6}
+      />
     </div>
   );
 }
