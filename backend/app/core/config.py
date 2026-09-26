@@ -4,8 +4,8 @@ Uses Pydantic Settings for strictly validated environment variables.
 """
 
 from pathlib import Path
-from typing import List, Optional
-from pydantic import Field
+from typing import Any, List, Optional
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,18 +52,53 @@ class Settings(BaseSettings):
 
     # CORS Origins (Restricted in production, no wildcards)
     ALLOWED_ORIGINS: List[str] = [
+        "https://www.flexitaka.com",
         "https://flexitaka.com",
+        "https://www.flexitaka.online",
+        "https://flexitaka.online",
         "https://app.flexitaka.com",
         "https://staging.flexitaka.com",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
     ]
+
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_allowed_origins(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            import json
+            v_trimmed = v.strip()
+            if v_trimmed.startswith("[") and v_trimmed.endswith("]"):
+                try:
+                    parsed = json.loads(v_trimmed)
+                    if isinstance(parsed, list):
+                        return [str(x).rstrip("/") for x in parsed]
+                except Exception:
+                    pass
+            return [x.strip().rstrip("/") for x in v_trimmed.split(",") if x.strip()]
+        if isinstance(v, list):
+            # Ensure essential production origins are always included
+            essential = {
+                "https://www.flexitaka.com",
+                "https://flexitaka.com",
+                "https://www.flexitaka.online",
+                "https://flexitaka.online",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+            }
+            cleaned = [str(x).rstrip("/") for x in v]
+            for o in essential:
+                if o not in cleaned:
+                    cleaned.append(o)
+            return cleaned
+        return v
 
     # Operational Defaults
     DEFAULT_CASHOUT_FEE_PERCENT: int = 20
     DEFAULT_RECHARGE_DISCOUNT_PERCENT: int = 5
-    MIN_ORDER_AMOUNT_BDT: int = 50
+    MIN_ORDER_AMOUNT_BDT: int = 10
     MAX_ORDER_AMOUNT_BDT: int = 50000
 
     # SMS Provider Configuration

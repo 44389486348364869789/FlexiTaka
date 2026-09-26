@@ -1,0 +1,187 @@
+================================================================================
+FLEXITAKA — LINKED SIM INFO AUDIT & OPERATOR API FIDELITY REPORT
+================================================================================
+Timestamp: 2026-09-26T12:09:45+02:00
+Environment: Production (Next.js 14.2.15 / FastAPI / MongoDB Motor)
+Audit Target: Linked SIM Real Operator API Data Display & Elimination of Fake Defaults
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY & AUDIT FINDINGS
+--------------------------------------------------------------------------------
+A thorough audit of the Linked SIM implementation was performed across the backend
+operator adapters (Grameenphone, Banglalink, Robi), database persistence layer,
+customer user service, and frontend profile UI cards.
+
+Previous Issues Uncovered & Corrected:
+1. Fake Default for SIM Type:
+   - Previously defaulted to "Prepaid" in schemas, service layer, and UI fallback
+     even when the operator API did not return connection category.
+   - RESOLUTION: Removed all fake defaults. When operator API does not return SIM type,
+     backend stores `None` and UI explicitly displays "Not available" ("অনুপলব্ধ").
+2. Fake Default for Balance Transfer Availability:
+   - Previously defaulted to `True` / "Available ✓" across schemas and service layer.
+   - RESOLUTION: Removed all hardcoded booleans. Only Banglalink API currently returns
+     an explicit `enable_balance_transfer` boolean in its customer object. For GP and
+     Robi where no explicit eligibility boolean is exposed in auth/balance, backend
+     stores `None` and UI explicitly displays "Not available".
+3. Fake "Just now" Last Synced Time:
+   - Profile UI previously displayed hardcoded "Just now" ("এইমাত্র") regardless of
+     the actual timestamp.
+   - RESOLUTION: Implemented dynamic relative time calculation (`formatRelativeSyncTime`)
+     based on authoritative ISO timestamps. If last synced timestamp is missing,
+     displays "Not available".
+4. Customer ID Integrity:
+   - Verified that Customer ID is strictly populated from authoritative operator
+     API responses (`customer_account_id` / `customer_id` / `id` / `subscriberId`).
+     Never invented, hardcoded, or faked. Unverified SIMs or SIMs without operator ID
+     explicitly display "Not available".
+
+--------------------------------------------------------------------------------
+2. OPERATOR-BY-OPERATOR API FIELD AUDIT MATRIX
+--------------------------------------------------------------------------------
+Below is the authoritative mapping of real API availability across all 10 fields:
+
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| Field                       | Grameenphone (GP)     | Banglalink (BL)       | Robi                  |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 1. Operator                 | GP / GRAMEENPHONE     | BANGLALINK            | ROBI                  |
+|                             | (Available)           | (Available)           | (Available)           |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 2. Full SIM Number          | 11 digits (017/013)   | 11 digits (019/014)   | 11 digits (018/016)   |
+|                             | (Available)           | (Available)           | (Available)           |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 3. Custom Label             | User-assigned string  | User-assigned string  | User-assigned string  |
+|                             | (Available if set)    | (Available if set)    | (Available if set)    |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 4. Verification Status      | VERIFIED / UNVERIFIED | VERIFIED / UNVERIFIED | VERIFIED / UNVERIFIED |
+|                             | (Available)           | (Available)           | (Available)           |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 5. Current Live Balance     | /v2/balance API       | /api/v1/balance API   | /api/v1/balance API   |
+|                             | (Available: ৳ balance)| (Available: ৳ balance)| (Available: ৳ balance)|
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 6. SIM Type                 | GP /balance "type"    | BL cust_obj "type"    | Not returned in Robi  |
+|    (Prepaid/Postpaid)       | (Available: Prepaid/  | (Available: PREPAID/  | auth or balance API   |
+|                             |  Postpaid)            |  POSTPAID)            | -> "Not available"    |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 7. Customer ID / Account ID | Real MyGP ID /        | Real BL customer_     | Real Robi customerId/ |
+|                             | account_id string     | account_id string     | subscriberId string   |
+|                             | (Available)           | (Available)           | (Available)           |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 8. Balance Transfer Status  | Auto-registers BT, no | Real boolean from BL: | No explicit BT flag   |
+|                             | explicit flag in API  | enable_balance_trans- | returned in API       |
+|                             | -> "Not available"    | fer (Available)       | -> "Not available"    |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 9. Verified Date            | verified_at timestamp | verified_at timestamp | verified_at timestamp |
+|                             | (Available)           | (Available)           | (Available)           |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+| 10. Last Synced Time        | Dynamic relative time | Dynamic relative time | Dynamic relative time |
+|                             | from last_synced_at   | from last_synced_at   | from last_synced_at   |
+|                             | (Available)           | (Available)           | (Available)           |
++-----------------------------+-----------------------+-----------------------+-----------------------+
+
+--------------------------------------------------------------------------------
+3. DETAILED IMPLEMENTATION VERIFICATION
+--------------------------------------------------------------------------------
+A. Customer ID Authenticity:
+   - GP: Extracted from `data.get("customer_id") or data.get("account_id") or data.get("id")`.
+     In test environment, matches `msisdn_88`. In production, uses real GP connect/user identifier.
+   - Banglalink: Extracted from `cust_obj.get("customer_account_id") or cust_obj.get("customer_id")`.
+     In test environment, matches `BL{msisdn}`. In production, uses real Banglalink customer account ID.
+   - Robi: Extracted from `resp_data.get("customerId") or resp_data.get("subscriberId") or resp_data.get("account_id")`.
+     In test environment, matches `ROBI{msisdn}`. In production, uses real Robi customerId.
+   - Unverified / Unavailable: Evaluates to `None` in backend and renders:
+     `<span style="color: #94A3B8;">Not available</span>` (or Bengali: "অনুপলব্ধ (Not available)").
+
+B. SIM Type Display:
+   - GP: Returned by `adapter.get_balance` in `extra["sim_type"]` (e.g., "Prepaid").
+   - Banglalink: Returned by `cust_obj.get("connection_type")` or `cust_obj.get("type")`.
+   - Robi: Not provided by Robi auth/balance endpoints -> explicitly returns `None` and displays "Not available".
+
+C. Balance Transfer Availability:
+   - Banglalink: Real boolean `cust_obj.get("enable_balance_transfer")` -> displays "Available ✓" (green) or "Unavailable" (red).
+   - GP & Robi: Operator APIs do not expose a dedicated boolean status flag -> returns `None` and displays "Not available" (subtle muted text).
+
+D. Last Synced Time Calculation:
+   - Built custom `formatRelativeSyncTime(isoString)` in `website/src/app/app/profile/page.tsx`.
+   - Returns "Just now" for events < 60s ago, "Xm ago" for < 60 mins, "Xh ago" for < 24 hours, or formatted date for older timestamps.
+   - Returns "Not available" if timestamp is missing.
+
+--------------------------------------------------------------------------------
+4. PRESERVATION OF EXISTING FUNCTIONAL UX
+--------------------------------------------------------------------------------
+All previously built customer flows remain fully active, functional, and intact:
+1. Cash Out Saved SIM Selector (`/app/cashout`):
+   - "Use Linked SIM" / "আমার যুক্ত সিম (Saved SIMs)" chips display verified SIMs.
+   - Auto-fills phone and operator.
+   - Checks live balance via `api.getLiveBalance(phone)`.
+   - Safely triggers operator OTP verification modal if operator session is expired.
+   - Allows toggle to enter any arbitrary destination number.
+2. Recharge "My SIM" Selector (`/app/recharge`):
+   - Quick "My SIM" / "আমার নম্বর (My SIM)" chip selector auto-fills recipient and operator.
+   - Allows manual override to recharge any other number.
+3. Fresh Authoritative API Data:
+   - Profile, Cash Out, and Recharge load data fresh from `GET /api/v1/user/sims`.
+   - Zero operator tokens or credentials exposed.
+
+--------------------------------------------------------------------------------
+5. FILES CHANGED
+--------------------------------------------------------------------------------
+1. `backend/app/modules/user/schemas.py`:
+   - Updated `LinkedSimResponse`: Removed hardcoded `"Prepaid"` and `True` defaults.
+   - Set `sim_type: Optional[str] = None` and `balance_transfer_available: Optional[bool] = None`.
+
+2. `backend/app/modules/user/service.py`:
+   - `add_linked_sim`: Stores `sim_type: None` and `balance_transfer_available: None` for unverified SIMs.
+   - `verify_sim_otp`: Extracts real `sim_type` and `balance_transfer_available` from operator response without fake fallbacks.
+   - `list_linked_sims`: Preserves real operator fields and updates `sim_type` from balance API if retrieved.
+
+3. `backend/app/modules/operators/banglalink.py`:
+   - Updated `verify_login_otp`: Extracts `enable_balance_transfer` and connection type from BL customer object.
+   - Updated test mode to provide realistic BL data.
+
+4. `backend/app/modules/operators/gp.py`:
+   - Updated `verify_login_otp` test mode: Sets `sim_type: "Prepaid"` and `balance_transfer_available: None`.
+   - Ensured `get_balance` extracts real `data.get("type")` from MyGP API.
+
+5. `backend/app/modules/operators/robi.py`:
+   - Updated `verify_login_otp` test mode: Explicitly documents `sim_type: None` and `balance_transfer_available: None`.
+
+6. `website/src/app/app/profile/page.tsx`:
+   - Added `formatRelativeSyncTime` helper for dynamic relative sync timestamps.
+   - Updated parameters grid for Balance, SIM Type, Customer ID, Balance Transfer, Verified Date, and Last Synced.
+   - For all unavailable fields, displays "Not available" ("অনুপলব্ধ (Not available)") instead of fake/default text.
+
+--------------------------------------------------------------------------------
+6. TEST & BUILD RESULTS
+--------------------------------------------------------------------------------
+1. TypeScript Compilation:
+   Command: `npx tsc --noEmit`
+   Result: Exit Code 0 (0 errors)
+
+2. Next.js Production Build:
+   Command: `npm run build`
+   Result: Exit Code 0
+   Output:
+     ✓ Compiled successfully
+     ✓ Linting and checking validity of types
+     ✓ Collecting page data
+     ✓ Generating static pages (22/22)
+     ✓ Collecting build traces
+     ✓ Finalizing page optimization
+     Route `/app/profile` compiled cleanly at 12.4 kB.
+
+3. Backend Pytest Suite:
+   Command: `python3 -m pytest backend/tests/test_customer_account.py`
+   Result: 4 passed in 0.60s (100% PASS)
+   Verified:
+     - test_account_otp_registration_and_profile: PASSED
+     - test_linked_sims_lifecycle_and_operator_verification: PASSED
+     - test_session_logout_revocation: PASSED
+     - test_operator_customer_id_gp_bl_robi_and_unavailable: PASSED
+
+4. Service Restart & Health:
+   Command: `systemctl restart flexitaka-website flexitaka-backend`
+   Result: Both services restarted with exit code 0.
+   - Backend API: `http://localhost:8000/api/v1/health` -> HTTP 200 OK (`{"status":"healthy"}`)
+   - Frontend Website: `http://localhost:3000` -> HTTP 200 OK
+================================================================================

@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
-import { CashOutOrderCreated, CashOutQuote, OperatorCode, PayoutMethod } from "@/lib/types";
+import { api, detectOperatorFromPhone, isTerminalStatus, normalizeBdPhone11 } from "@/lib/api";
+import { CashOutOrderCreated, CashOutQuote, LinkedSim, OperatorCode, PayoutMethod } from "@/lib/types";
 import {
   AlertCircle,
   ArrowLeft,
@@ -13,10 +13,11 @@ import {
   Copy,
   RefreshCw,
   ShieldCheck,
+  Smartphone,
   Upload,
 } from "lucide-react";
 import OperatorSelector from "@/components/OperatorSelector";
-import { formatBDT } from "@/lib/formatters";
+import { formatBDT, formatApiErrorMessage } from "@/lib/formatters";
 import { getStoredAuthToken, getStoredGuestSessionId } from "@/lib/api";
 import LiveQuoteCard from "@/components/LiveQuoteCard";
 import WalletSelector from "@/components/WalletSelector";
@@ -42,6 +43,11 @@ function CashOutWizardContent() {
   const [amount, setAmount] = useState<string>("");
   const [payoutMethod, setPayoutMethod] = useState<PayoutMethod>("BKASH");
   const [payoutAccount, setPayoutAccount] = useState<string>("");
+
+  // Saved Linked SIMs State
+  const [linkedSims, setLinkedSims] = useState<LinkedSim[]>([]);
+  const [selectedSimId, setSelectedSimId] = useState<string | null>(null);
+  const [checkingSimSession, setCheckingSimSession] = useState(false);
 
   // Live Server Quote
   const [quote, setQuote] = useState<CashOutQuote | null>(null);
@@ -79,12 +85,16 @@ function CashOutWizardContent() {
 
   // Validation helpers
   const isOperatorSelected = Boolean(operator);
-  const cleanedPhone = sourcePhone.replace(/[\s\-\+]/g, "").replace(/^88/, "");
+  const cleanedPhone = normalizeBdPhone11(sourcePhone);
   const isPhoneValid = Boolean(cleanedPhone.match(/^01[3-9]\d{8}$/));
   const isPhoneVerified = Boolean(verifiedPhone && verifiedPhone === cleanedPhone);
 
+  const detectedOp = detectOperatorFromPhone(cleanedPhone);
+  const isOperatorMismatch = Boolean(operator && detectedOp && operator !== detectedOp);
+
   const numAmount = parseFloat(amount);
-  const isAmountValid = !isNaN(numAmount) && numAmount >= 50 && numAmount <= 50000;
+  const isAmountValid = !isNaN(numAmount) && numAmount >= 10 && numAmount <= 50000;
+  const hasInsufficientBalance = Boolean(simBalance !== null && !isNaN(numAmount) && numAmount > simBalance);
 
   // Compute current step for the top step indicator: 1 Operator -> 2 Number -> 3 Amount -> 4 Review
   let currentStep: 1 | 2 | 3 | 4 = 1;
@@ -97,6 +107,56 @@ function CashOutWizardContent() {
   } else {
     currentStep = 4;
   }
+
+  // Fetch Authoritative Linked SIMs for logged-in user
+  useEffect(() => {
+    const token = getStoredAuthToken();
+    if (token) {
+      api.getLinkedSims()
+        .then((sims) => {
+          if (Array.isArray(sims)) {
+            setLinkedSims(sims);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const verifiedSims = linkedSims.filter((s) => s.status === "VERIFIED");
+
+  const handleSelectLinkedSim = async (sim: LinkedSim) => {
+    setSelectedSimId(sim.sim_id);
+    setSourcePhone(sim.phone);
+    setOperator(sim.operator_code as OperatorCode);
+    setActionError(null);
+
+    if (sim.last_balance_bdt != null) {
+      setSimBalance(sim.last_balance_bdt);
+    }
+
+    setCheckingSimSession(true);
+    try {
+      const live = await api.getLiveBalance(sim.phone);
+      if (live && live.balance_bdt != null) {
+        setSimBalance(live.balance_bdt);
+        setVerifiedPhone(sim.phone);
+      }
+    } catch {
+      // Session missing or expired -> OTP is required when customer proceeds
+      setVerifiedPhone(null);
+    } finally {
+      setCheckingSimSession(false);
+      amountRef.current?.focus();
+    }
+  };
+
+  const handleClearSelectedSim = () => {
+    setSelectedSimId(null);
+    setSourcePhone("");
+    setVerifiedPhone(null);
+    setSimBalance(null);
+    phoneRef.current?.focus();
+  };
 
   // Smooth auto-focus when next step reveals
   useEffect(() => {
@@ -111,31 +171,35 @@ function CashOutWizardContent() {
     }
   }, [isPhoneValid]);
 
-  // Poll real-time transfer progress when in Step 2
+  // Poll real-time transfer progress when in Step 2 with automatic terminal stopping
   useEffect(() => {
     if (step !== 2 || !createdOrder?.order_id) return;
     let isCancelled = false;
+    let pollTimer: any = null;
 
     const pollProgress = async () => {
       try {
         const prog = await api.getCashOutTransferProgress(createdOrder.order_id);
         if (!isCancelled && prog) {
           setTransferProgress(prog);
+          if (prog.is_failed || prog.is_completed || isTerminalStatus(prog.status)) {
+            if (pollTimer) clearInterval(pollTimer);
+          }
         }
       } catch {}
     };
 
     pollProgress();
-    const interval = setInterval(pollProgress, 3500);
+    pollTimer = setInterval(pollProgress, 3500);
     return () => {
       isCancelled = true;
-      clearInterval(interval);
+      if (pollTimer) clearInterval(pollTimer);
     };
   }, [step, createdOrder?.order_id]);
 
   // Fetch live quote from backend strictly when inputs are valid
   const updateQuote = async () => {
-    if (!operator || !isAmountValid) {
+    if (!operator || !isAmountValid || isOperatorMismatch) {
       setQuote(null);
       setQuoteLoading(false);
       setQuoteError(null);
@@ -145,7 +209,7 @@ function CashOutWizardContent() {
     setQuoteError(null);
     setQuoteLoading(true);
     try {
-      const q = await api.getCashOutQuote(operator as OperatorCode, amount);
+      const q = await api.getCashOutQuote(operator as OperatorCode, amount, cleanedPhone);
       setQuote(q);
     } catch {
       // Fallback calculation if offline
@@ -174,12 +238,12 @@ function CashOutWizardContent() {
       setQuote(null);
       setQuoteLoading(false);
       if (amount.trim() !== "" && !isAmountValid) {
-        setQuoteError(lang === "bn" ? "পরিমাণ অবশ্যই ৳৫০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳50 and ৳50,000");
+        setQuoteError(lang === "bn" ? "পরিমাণ অবশ্যই ৳১০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳10 and ৳50,000");
       } else {
         setQuoteError(null);
       }
     }
-  }, [operator, amount, isAmountValid, lang]);
+  }, [operator, amount, isAmountValid, lang, isOperatorMismatch]);
 
   // Handle Order Creation
   const handleTriggerOtp = async () => {
@@ -187,10 +251,18 @@ function CashOutWizardContent() {
       setActionError(lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Please enter a valid 11-digit Bangladesh mobile number (e.g. 01712345678)");
       return;
     }
+    if (isOperatorMismatch) {
+      setActionError(
+        lang === "bn"
+          ? "নির্বাচিত অপারেটর এই মোবাইল নম্বরের সাথে মিলছে না।"
+          : "The selected operator does not match this mobile number."
+      );
+      return;
+    }
     setActionError(null);
     setOtpSending(true);
     try {
-      const res = await api.requestOperatorOtp(cleanedPhone);
+      const res = await api.requestOperatorOtp(cleanedPhone, operator || undefined);
       setOtpRefId(res.reference_id);
       if (res.operator_code && ["GP", "ROBI", "BANGLALINK"].includes(res.operator_code)) {
         setOperator(res.operator_code as OperatorCode);
@@ -224,12 +296,7 @@ function CashOutWizardContent() {
       setCreatedOrder(order);
       setStep(2);
     } catch (err: any) {
-      let msg = err.message || (lang === "bn" ? "ক্যাশ আউট অর্ডার তৈরি করতে ব্যর্থ হয়েছে" : "Failed to create Cash Out order");
-      if (msg.includes(" : ")) {
-        const parts = msg.split(" : ");
-        msg = lang === "bn" ? parts[0].trim() : parts[1].trim();
-      }
-      setActionError(msg);
+      setActionError(formatApiErrorMessage(err, lang));
     } finally {
       setSubmitting(false);
     }
@@ -249,6 +316,15 @@ function CashOutWizardContent() {
       return;
     }
 
+    if (isOperatorMismatch) {
+      setActionError(
+        lang === "bn"
+          ? "নির্বাচিত অপারেটর এই মোবাইল নম্বরের সাথে মিলছে না।"
+          : "The selected operator does not match this mobile number."
+      );
+      return;
+    }
+
     // Enforce OTP verification before allowing order placement
     if (!isPhoneVerified) {
       await handleTriggerOtp();
@@ -256,12 +332,26 @@ function CashOutWizardContent() {
     }
 
     if (!isAmountValid) {
-      setActionError(lang === "bn" ? "পরিমাণ অবশ্যই ৳৫০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳50 and ৳50,000");
+      setActionError(lang === "bn" ? "পরিমাণ অবশ্যই ৳১০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳10 and ৳50,000");
+      return;
+    }
+
+    if (hasInsufficientBalance) {
+      setActionError(
+        lang === "bn"
+          ? `আপনার SIM-এ পর্যাপ্ত ব্যালান্স নেই। বর্তমান ব্যালান্স: ৳${simBalance}`
+          : `Insufficient SIM balance. Current balance: ৳${simBalance}`
+      );
       return;
     }
 
     if (!payoutAccount.trim()) {
       setActionError(lang === "bn" ? "আপনার পেআউট অ্যাকাউন্ট নম্বর দিন (bKash/Nagad/Bank)" : "Please enter your payout account number (bKash/Nagad/Bank)");
+      return;
+    }
+
+    if (payoutMethod !== "BANK" && payoutAccount.trim().length !== 11) {
+      setActionError(lang === "bn" ? "সঠিক ১১ সংখ্যার পেআউট নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Enter a valid 11-digit payout number (e.g. 017XXXXXXXX)");
       return;
     }
 
@@ -455,6 +545,123 @@ function CashOutWizardContent() {
           {/* Subtle Top Step Indicator */}
           <StepIndicator currentStep={currentStep} />
 
+          {/* LINKED SIM SELECTOR (Rendered when customer has verified SIMs) */}
+          {verifiedSims.length > 0 && (
+            <div
+              style={{
+                backgroundColor: "#F8FAFC",
+                border: "1px solid #E2E8F0",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "8px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Smartphone size={14} color="var(--ft-green)" />
+                  <span style={{ fontSize: "0.8125rem", fontWeight: "600", color: "#1E293B" }}>
+                    {lang === "bn" ? "আমার যুক্ত সিম (Saved SIMs)" : "Use Linked SIM"}
+                  </span>
+                </div>
+                {selectedSimId && (
+                  <button
+                    type="button"
+                    onClick={handleClearSelectedSim}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--ft-green)",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    {lang === "bn" ? "+ অন্য নম্বর লিখুন" : "+ Enter other number"}
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {verifiedSims.map((sim) => {
+                  const isSelected = selectedSimId === sim.sim_id;
+                  return (
+                    <button
+                      key={sim.sim_id}
+                      type="button"
+                      onClick={() => handleSelectLinkedSim(sim)}
+                      disabled={checkingSimSession}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        border: isSelected
+                          ? "2px solid var(--ft-green)"
+                          : "1px solid #CBD5E1",
+                        backgroundColor: isSelected ? "var(--ft-green-subtle)" : "#FFFFFF",
+                        color: isSelected ? "var(--ft-green-active)" : "#334155",
+                        cursor: "pointer",
+                        fontSize: "0.8125rem",
+                        fontWeight: isSelected ? "600" : "500",
+                        transition: "all 0.15s ease",
+                        textAlign: "left",
+                      }}
+                    >
+                      <span
+                        style={{
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          backgroundColor: isSelected ? "var(--ft-green)" : "#E2E8F0",
+                          color: isSelected ? "#FFFFFF" : "#475569",
+                          fontSize: "0.6875rem",
+                          fontWeight: "700",
+                        }}
+                      >
+                        {sim.operator_code}
+                      </span>
+                      <span>
+                        {lang === "bn" ? toBnDigits(sim.phone) : sim.phone}
+                      </span>
+                      {sim.label && (
+                        <span style={{ color: "#64748B", fontSize: "0.75rem", fontWeight: "400" }}>
+                          ({sim.label})
+                        </span>
+                      )}
+                      {sim.last_balance_bdt != null && (
+                        <span
+                          style={{
+                            color: isSelected ? "var(--ft-green-active)" : "#0F172A",
+                            fontWeight: "700",
+                            fontFamily: "monospace",
+                            fontSize: "0.75rem",
+                          }}
+                        >
+                          ৳{lang === "bn" ? toBnDigits(sim.last_balance_bdt.toFixed(0)) : sim.last_balance_bdt.toFixed(0)}
+                        </span>
+                      )}
+                      <span style={{ color: "#16A34A", fontSize: "0.75rem" }}>✓</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {checkingSimSession && (
+                <div style={{ fontSize: "0.75rem", color: "var(--ft-green)", marginTop: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <RefreshCw size={11} className="spin" />
+                  <span>{lang === "bn" ? "অপারেটর সেশন ও ব্যালেন্স যাচাই করা হচ্ছে..." : "Checking operator session & balance..."}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* STAGE 1: OPERATOR SELECTION (Always visible) */}
           <div className="form-group" style={{ marginBottom: isOperatorSelected ? "12px" : "4px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
@@ -513,20 +720,63 @@ function CashOutWizardContent() {
                 type="tel"
                 className="form-input"
                 placeholder="01XXXXXXXXX"
+                maxLength={11}
                 value={sourcePhone}
                 onChange={(e) => {
-                  setSourcePhone(e.target.value);
-                  const newClean = e.target.value.replace(/[\s\-\+]/g, "").replace(/^88/, "");
-                  if (verifiedPhone && verifiedPhone !== newClean) {
+                  const cleaned = e.target.value.replace(/\D/g, "").slice(0, 11);
+                  setSourcePhone(cleaned);
+                  if (selectedSimId && cleaned !== sourcePhone) {
+                    setSelectedSimId(null);
+                  }
+                  if (verifiedPhone && verifiedPhone !== cleaned) {
                     setVerifiedPhone(null);
+                  }
+                  const autoOp = detectOperatorFromPhone(cleaned);
+                  if (!operator && autoOp) {
+                    setOperator(autoOp as OperatorCode);
                   }
                 }}
                 required
-                style={{ height: "44px" }}
+                style={{ height: "44px", borderColor: isOperatorMismatch ? "#EF4444" : undefined }}
               />
-              {!isPhoneValid && sourcePhone.length > 0 && (
+              {isOperatorMismatch && (
+                <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <AlertCircle size={13} />
+                  <span>
+                    {lang === "bn"
+                      ? `নির্বাচিত অপারেটর (${operator}) এই মোবাইল নম্বরের (${detectedOp}) সাথে মিলছে না।`
+                      : `Selected operator (${operator}) does not match this number (${detectedOp}).`}
+                  </span>
+                </div>
+              )}
+              {!isOperatorMismatch && !isPhoneValid && sourcePhone.length > 0 && (
                 <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                  {lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Enter a valid 11-digit Bangladesh mobile number (e.g. 017XXXXXXXX)"}
+                  {lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১XXXXXXXXX)" : "Enter a valid 11-digit Bangladesh mobile number (e.g. 01XXXXXXXXX)"}
+                </div>
+              )}
+              {isOperatorSelected && isPhoneValid && !isPhoneVerified && !isOperatorMismatch && (
+                <div style={{
+                  marginTop: "8px",
+                  padding: "8px 10px",
+                  background: "var(--bg-main, #F8FAFC)",
+                  border: "1px solid var(--border-light, #E2E8F0)",
+                  borderRadius: "var(--radius-sm, 6px)",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "6px",
+                  fontSize: "0.71875rem",
+                  color: "var(--text-secondary, #64748B)",
+                  lineHeight: 1.4,
+                }}>
+                  <ShieldCheck size={14} color="var(--ft-green)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                  <div>
+                    <strong style={{ color: "var(--text-primary)", display: "block", marginBottom: "1px" }}>
+                      {lang === "bn" ? "নিরাপত্তা তথ্য" : "Security Notice"}
+                    </strong>
+                    {lang === "bn"
+                      ? "আপনার SIM অ্যাকাউন্ট যাচাই করতে প্রয়োজনে operator verification OTP চাওয়া হতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।"
+                      : "An operator verification OTP may be requested when needed to authenticate your SIM account. We will never ask for your SIM PIN or account password."}
+                  </div>
                 </div>
               )}
               {isPhoneVerified && simBalance !== null && (
@@ -569,19 +819,35 @@ function CashOutWizardContent() {
                   ref={amountRef}
                   type="number"
                   className="form-input"
-                  min="50"
+                  min="10"
                   max="50000"
-                  step="10"
-                  placeholder={lang === "bn" ? "পরিমাণ" : "Amount"}
+                  step="1"
+                  placeholder={lang === "bn" ? "১০ - ৫০,০০০" : "10 - 50,000"}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
-                  style={{ fontSize: "1.125rem", fontWeight: "600", paddingLeft: "32px", height: "44px" }}
+                  style={{
+                    fontSize: "1.125rem",
+                    fontWeight: "600",
+                    paddingLeft: "32px",
+                    height: "44px",
+                    borderColor: hasInsufficientBalance ? "#EF4444" : undefined
+                  }}
                 />
                 <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", fontWeight: "500", color: "var(--text-muted)", fontSize: "1rem" }}>
                   ৳
                 </span>
               </div>
+              {hasInsufficientBalance && simBalance !== null && (
+                <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <AlertCircle size={13} />
+                  <span>
+                    {lang === "bn"
+                      ? `আপনার SIM-এ পর্যাপ্ত ব্যালান্স নেই। বর্তমান ব্যালান্স: ৳${toBnDigits(simBalance.toFixed(2))}`
+                      : `Insufficient SIM balance. Current balance: ৳${simBalance.toFixed(2)}`}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -615,8 +881,12 @@ function CashOutWizardContent() {
                   type="text"
                   className="form-input"
                   placeholder={payoutMethod === "BANK" ? (lang === "bn" ? "ব্যাংকের নাম, শাখা, অ্যাকাউন্ট নম্বর" : "Bank Name, Branch, Account Number") : "01XXXXXXXXX"}
+                  maxLength={payoutMethod === "BANK" ? 50 : 11}
                   value={payoutAccount}
-                  onChange={(e) => setPayoutAccount(e.target.value)}
+                  onChange={(e) => {
+                    const val = payoutMethod === "BANK" ? e.target.value : e.target.value.replace(/\D/g, "").slice(0, 11);
+                    setPayoutAccount(val);
+                  }}
                   required
                   style={{ height: "44px" }}
                 />
@@ -626,7 +896,7 @@ function CashOutWizardContent() {
               <button
                 type="submit"
                 className="btn btn-primary btn-full"
-                disabled={submitting || quoteLoading || !quote || !payoutAccount.trim()}
+                disabled={submitting || quoteLoading || !quote || !payoutAccount.trim() || isOperatorMismatch || hasInsufficientBalance}
                 style={{ height: "52px", fontSize: "0.9375rem", fontWeight: "600" }}
               >
                 {submitting ? (
@@ -677,8 +947,12 @@ function CashOutWizardContent() {
 
           {/* Automated Balance Transfer Live Progress Tracker */}
           <div style={{
-            backgroundColor: "#FFFFFF",
-            border: transferProgress?.is_completed
+            backgroundColor: (transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+              ? "#FEF2F2"
+              : "#FFFFFF",
+            border: (transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+              ? "2px solid #EF4444"
+              : transferProgress?.is_completed
               ? "2px solid #22C55E"
               : transferProgress?.is_cooldown
               ? "2px solid #F59E0B"
@@ -690,7 +964,9 @@ function CashOutWizardContent() {
           }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
               <div style={{ marginTop: "2px" }}>
-                {transferProgress?.is_completed ? (
+                {(transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE") ? (
+                  <AlertCircle size={24} color="#DC2626" />
+                ) : transferProgress?.is_completed ? (
                   <CheckCircle2 size={24} color="#16A34A" />
                 ) : (
                   <RefreshCw size={24} color={transferProgress?.is_cooldown ? "#D97706" : "var(--ft-green)"} className={transferProgress?.is_cooldown ? "" : "spin"} />
@@ -698,8 +974,17 @@ function CashOutWizardContent() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ fontSize: "1rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
-                    {transferProgress?.is_completed
+                  <h3 style={{
+                    fontSize: "1rem",
+                    fontWeight: "700",
+                    margin: 0,
+                    color: (transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+                      ? "#991B1B"
+                      : "var(--text-primary)"
+                  }}>
+                    {(transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+                      ? (lang === "bn" ? "ব্যালেন্স ট্রান্সফার সম্পন্ন করা যায়নি" : "Balance Transfer Failed")
+                      : transferProgress?.is_completed
                       ? (lang === "bn" ? "ব্যালেন্স ট্রান্সফার সম্পন্ন হয়েছে!" : "Balance Transfer Received!")
                       : transferProgress?.is_cooldown
                       ? (lang === "bn" ? "অপারেটর কুলডাউন অপেক্ষমান" : "Waiting for Operator Cooldown")
@@ -710,14 +995,41 @@ function CashOutWizardContent() {
                     fontWeight: "600",
                     padding: "2px 8px",
                     borderRadius: "4px",
-                    backgroundColor: transferProgress?.is_completed ? "#DCFCE7" : transferProgress?.is_cooldown ? "#FEF3C7" : "var(--ft-green-subtle)",
-                    color: transferProgress?.is_completed ? "#166534" : transferProgress?.is_cooldown ? "#92400E" : "var(--ft-green-active)"
+                    backgroundColor: (transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+                      ? "#FEE2E2"
+                      : transferProgress?.is_completed
+                      ? "#DCFCE7"
+                      : transferProgress?.is_cooldown
+                      ? "#FEF3C7"
+                      : "var(--ft-green-subtle)",
+                    color: (transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+                      ? "#991B1B"
+                      : transferProgress?.is_completed
+                      ? "#166534"
+                      : transferProgress?.is_cooldown
+                      ? "#92400E"
+                      : "var(--ft-green-active)"
                   }}>
-                    {transferProgress?.is_completed ? "TRANSFER_RECEIVED" : transferProgress?.is_cooldown ? "COOLDOWN_ACTIVE" : "TRANSFER_RUNNING"}
+                    {(transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+                      ? (transferProgress?.error_code || "FAILED")
+                      : transferProgress?.is_completed
+                      ? "TRANSFER_RECEIVED"
+                      : transferProgress?.is_cooldown
+                      ? "COOLDOWN_ACTIVE"
+                      : "TRANSFER_RUNNING"}
                   </span>
                 </div>
-                <p style={{ margin: "4px 0 0 0", fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
-                  {transferProgress?.is_completed
+                <p style={{
+                  margin: "4px 0 0 0",
+                  fontSize: "0.8125rem",
+                  color: (transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+                    ? "#991B1B"
+                    : "var(--text-secondary)",
+                  lineHeight: 1.4
+                }}>
+                  {(transferProgress?.is_failed || transferProgress?.status === "TRANSFER_FAILED" || transferProgress?.status === "FAILED" || transferProgress?.status === "INSUFFICIENT_BALANCE")
+                    ? (transferProgress?.error_message || (lang === "bn" ? "লেনদেন সম্পন্ন করা যায়নি।" : "Transaction could not be completed."))
+                    : transferProgress?.is_completed
                     ? (lang === "bn" ? "আপনার সিম থেকে সম্পূর্ণ অর্থ সফলভাবে FlexiTaka-তে জমা হয়েছে। পেআউট দ্রুত আপনার অ্যাকাউন্টে পৌঁছে যাবে।" : "Full balance successfully received by FlexiTaka. Payout is being reviewed and processed.")
                     : transferProgress?.is_cooldown
                     ? (lang === "bn"

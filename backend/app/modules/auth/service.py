@@ -31,18 +31,11 @@ from app.modules.auth.sms.base import SMSProvider
 from app.modules.auth.sms.factory import get_sms_provider
 
 
-BD_PHONE_REGEX = re.compile(r"^(?:\+8801|8801|01)[3-9]\d{8}$")
+from app.modules.operators.resolver import normalize_msisdn
 
 
 def normalize_bd_phone(phone: str) -> str:
-    cleaned = re.sub(r"[^\d+]", "", phone.strip())
-    if cleaned.startswith("+880"):
-        cleaned = "0" + cleaned[4:]
-    elif cleaned.startswith("880"):
-        cleaned = "0" + cleaned[3:]
-    if not BD_PHONE_REGEX.match(cleaned):
-        raise ValidationException("Invalid Bangladeshi mobile number", code=ErrorCode.INVALID_MOBILE_NUMBER)
-    return cleaned
+    return normalize_msisdn(phone)
 
 
 def mask_phone(phone: str) -> str:

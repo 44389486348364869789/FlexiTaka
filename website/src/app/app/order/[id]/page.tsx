@@ -109,15 +109,37 @@ function OrderDetailContent() {
           <span>{tDetail.backToOrders}</span>
         </Link>
 
-        <button
-          onClick={fetchOrderDetails}
-          className="btn btn-outline btn-sm"
-          style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-          aria-label={tr.common.actions.refresh}
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>{tr.common.actions.refresh}</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <Link
+            href={`/app/order/${orderId}/progress${trackingToken ? `?token=${encodeURIComponent(trackingToken)}` : ""}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "6px 14px",
+              borderRadius: "8px",
+              fontSize: "0.875rem",
+              fontWeight: "700",
+              color: "#1D4ED8",
+              backgroundColor: "#EFF6FF",
+              border: "1px solid #BFDBFE",
+              textDecoration: "none",
+            }}
+          >
+            <span>{lang === "bn" ? "লাইভ প্রগ্রেস দেখুন" : "Live Progress"}</span>
+            <ExternalLink size={14} />
+          </Link>
+
+          <button
+            onClick={fetchOrderDetails}
+            className="btn btn-outline btn-sm"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            aria-label={tr.common.actions.refresh}
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            <span>{tr.common.actions.refresh}</span>
+          </button>
+        </div>
       </div>
 
       {error ? (

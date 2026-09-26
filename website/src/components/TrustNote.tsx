@@ -13,10 +13,13 @@ export default function TrustNote({
   text,
   align = "center",
 }: TrustNoteProps) {
-  const { isBn } = useLanguage();
-  const defaultText = isBn
-    ? "টেলিকম পাসওয়ার্ড বা OTP-এর প্রয়োজন নেই"
-    : "No telecom password or OTP required";
+  const { isBn, t } = useLanguage();
+  const defaultText = t(
+    "common.security.trustNoteDefault",
+    isBn
+      ? "আমরা কখনো আপনার SIM PIN বা account password চাইব না"
+      : "We will never ask for your SIM PIN or account password"
+  );
 
   const displayText = text ?? defaultText;
 

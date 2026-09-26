@@ -12,7 +12,11 @@ from app.api.dependencies import (
 from app.db.repositories.cashout_repo import CashOutRepository
 from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.recharge_repo import RechargeRepository
-from app.modules.orders.schemas import OrderDetailResponse, OrderSummaryResponse
+from app.modules.orders.schemas import (
+    OrderDetailResponse,
+    OrderProgressResponse,
+    OrderSummaryResponse,
+)
 from app.modules.orders.service import OrdersService
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -55,3 +59,48 @@ async def get_order_by_id(
         guest_session_id=guest_session_id,
         tracking_token=tracking_token
     )
+
+
+@router.get("/{order_id}/progress", response_model=OrderProgressResponse)
+async def get_order_progress(
+    order_id: str,
+    tracking_token: Optional[str] = Query(None),
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    guest_session_id: Optional[str] = Depends(get_guest_session_id_optional),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    recharge_repo = RechargeRepository(db)
+    service = OrdersService(orders_repo, cashout_repo, recharge_repo)
+
+    user_id = user["sub"] if user else None
+    return await service.get_order_progress(
+        order_id=order_id,
+        user_id=user_id,
+        guest_session_id=guest_session_id,
+        tracking_token=tracking_token
+    )
+
+
+@router.post("/{order_id}/cancel")
+async def cancel_order(
+    order_id: str,
+    tracking_token: Optional[str] = Query(None),
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    guest_session_id: Optional[str] = Depends(get_guest_session_id_optional),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    recharge_repo = RechargeRepository(db)
+    service = OrdersService(orders_repo, cashout_repo, recharge_repo)
+
+    user_id = user["sub"] if user else None
+    return await service.cancel_order(
+        order_id=order_id,
+        user_id=user_id,
+        guest_session_id=guest_session_id,
+        tracking_token=tracking_token
+    )
+

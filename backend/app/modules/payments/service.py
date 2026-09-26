@@ -38,7 +38,11 @@ class PaymentsService:
             raise NotFoundException(f"Order {order_id} not found")
 
         if order["status"] != RechargeStatus.PAYMENT_PENDING:
-            raise ConflictException(f"Order {order_id} is not in PAYMENT_PENDING status")
+            existing_payment = await self.payments_repo.find_one({"order_id": order_id})
+            if existing_payment:
+                existing_payment.pop("_id", None)
+                return existing_payment
+            raise ConflictException(f"Order {order_id} is already in {order['status']} status")
 
         amount_poisha = bdt_to_poisha(amount_bdt)
         payment_id = generate_payment_id()

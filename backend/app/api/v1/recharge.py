@@ -3,6 +3,7 @@ Recharge Router.
 Handles discount quote confirmation, recharge order creation, and live transfer progress.
 """
 
+from decimal import Decimal
 from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, Header, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -59,7 +60,7 @@ async def create_recharge_order(
     if idempotency_key:
         cacheable = result.copy()
         for k, v in cacheable.items():
-            if hasattr(v, "__str__") and not isinstance(v, (int, bool, str, type(None))):
+            if isinstance(v, Decimal):
                 cacheable[k] = str(v)
         await save_cached_idempotency(idempotency_key, 201, cacheable)
 

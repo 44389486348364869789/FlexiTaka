@@ -88,7 +88,7 @@ export default function PricingPage() {
               {isBn ? "লেনদেনের সীমা" : "TRANSACTION LIMITS"}
             </div>
             <div style={{ fontSize: "1.125rem", fontWeight: "600", color: "var(--text-primary)", marginTop: "2px" }}>
-              {isBn ? "৳৫০.০০ – ৳৫০,০০০.০০" : "৳50.00 – ৳50,000.00"}
+              {isBn ? "৳১০.০০ – ৳৫০,০০০.০০" : "৳10.00 – ৳50,000.00"}
             </div>
           </div>
           <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", alignItems: "center" }}>
@@ -333,8 +333,8 @@ export default function PricingPage() {
             </h2>
             <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", maxWidth: "540px", margin: "0 auto", fontWeight: "400" }}>
               {isBn
-                ? "৳৫০ থেকে ৳৫০,০০০-এর মধ্যে যেকোনো পরিমাণ লিখে তাৎক্ষণিক সার্ভার কোটেশন পান।"
-                : "Enter any amount between ৳50 and ৳50,000 to see real-time authoritative quotes directly from our server."}
+                ? "৳১০ থেকে ৳৫০,০০০-এর মধ্যে যেকোনো পরিমাণ লিখে তাৎক্ষণিক সার্ভার কোটেশন পান।"
+                : "Enter any amount between ৳10 and ৳50,000 to see real-time authoritative quotes directly from our server."}
             </p>
           </div>
 
@@ -408,8 +408,8 @@ export default function PricingPage() {
               </h4>
               <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.55, margin: 0, fontWeight: "400" }}>
                 {isBn
-                  ? "ক্যাশ আউট বা রিচার্জের জন্য ৳৫০ থেকে ৳৫০,০০০-এর মধ্যে যেকোনো পরিমাণ লিখুন।"
-                  : "Input any balance or airtime value between ৳50 and ৳50,000 for your SIM balance cash out or airtime recharge."}
+                  ? "ক্যাশ আউট বা রিচার্জের জন্য ৳১০ থেকে ৳৫০,০০০-এর মধ্যে যেকোনো পরিমাণ লিখুন।"
+                  : "Input any balance or airtime value between ৳10 and ৳50,000 for your SIM balance cash out or airtime recharge."}
               </p>
             </div>
 
@@ -546,8 +546,8 @@ export default function PricingPage() {
           </h2>
           <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", maxWidth: "520px", margin: "0 auto 20px", fontWeight: "400" }}>
             {isBn
-              ? "কোনো টেলিকম পাসওয়ার্ড বা পিন শেয়ারিং ছাড়াই পান নিশ্চিত সেবা ও স্বচ্ছ মূল্য।"
-              : "Experience fast, audited balance exchange and guaranteed discounts with zero telecom credentials required."}
+              ? "কোনো গোপন সিম পিন বা অ্যাকাউন্ট পাসওয়ার্ড শেয়ার না করেই পান নিশ্চিত সেবা ও স্বচ্ছ মূল্য।"
+              : "Experience fast, audited balance exchange and guaranteed discounts without sharing your SIM PIN or password."}
           </p>
           <div style={{ display: "flex", gap: "14px", justifyContent: "center", flexWrap: "wrap" }}>
             <Link href="/cash-out" className="btn btn-primary" style={{ height: "44px", padding: "0 24px", fontWeight: "600" }}>

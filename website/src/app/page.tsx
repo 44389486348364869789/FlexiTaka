@@ -145,7 +145,7 @@ export default function HomePage() {
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }} className="hero-trust-item">
                   <CheckCircle2 size={18} color="var(--ft-green)" style={{ flexShrink: 0 }} />
                   <span style={{ fontSize: "0.875rem", fontWeight: "600", color: "var(--text-secondary)" }}>
-                    {isBn ? "টেলিকম পাসওয়ার্ড প্রয়োজন নেই" : "No Telecom Password Needed"}
+                    {isBn ? "সিম পিন বা পাসওয়ার্ড প্রয়োজন নেই" : "No SIM PIN or Account Password Needed"}
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }} className="hero-trust-item">
@@ -234,8 +234,8 @@ export default function HomePage() {
               </h3>
               <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
                 {isBn
-                  ? "আপনার অপারেটরের অফিশিয়াল ইউএসএসডি কোড বা অ্যাপের মাধ্যমে নির্ধারিত নম্বরে ব্যালেন্স ট্রান্সফার করুন।"
-                  : "Dial your operator's official USSD code or use their mobile app to transfer the balance to our assigned receiving SIM."}
+                  ? "আমাদের নিরাপদ প্ল্যাটফর্মে ট্রান্সফার সম্পন্ন করুন অথবা অপারেটর অনুমোদিত চ্যানেল ব্যবহার করে নির্ধারিত ব্যালেন্স নিশ্চিত করুন।"
+                  : "Complete the transfer securely through our verified platform or designated operator channels."}
               </p>
             </div>
 
@@ -441,12 +441,12 @@ export default function HomePage() {
                 <Lock size={28} />
               </div>
               <h4 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "8px" }}>
-                {isBn ? "জিরো ক্রেডেনশিয়াল কালেকশন" : "Zero Credential Collection"}
+                {isBn ? "জিরো পিন ও পাসওয়ার্ড কালেকশন" : "Zero PIN & Password Collection"}
               </h4>
               <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.6 }}>
                 {isBn
-                  ? "আমরা কখনোই আপনার সিম পিন, মাইজিপি/মাইরবি/মাইবিএল পাসওয়ার্ড বা টেলিকম ওটিপি চাই না। ব্যালেন্স ট্রান্সফার সম্পন্ন হয় সরাসরি আপনার হ্যান্ডসেট থেকে।"
-                  : "We never ask for your SIM PIN, MyGP/MyRobi/MyBL account password, or operator OTP. All balance transfers are executed directly on your phone's official dialer or app."}
+                  ? "আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে FlexiTaka একবারের operator verification OTP চাইতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।"
+                  : "FlexiTaka may request a one-time operator verification OTP when required to securely authenticate your SIM account. We will never ask for your SIM PIN or account password."}
               </p>
             </div>
 

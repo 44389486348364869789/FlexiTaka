@@ -55,11 +55,11 @@ export default function Calculator({
     }
 
     const num = parseFloat(amount);
-    if (isNaN(num) || num < 50 || num > 50000) {
+    if (isNaN(num) || num < 10 || num > 50000) {
       setError(
         isBn
-          ? "পরিমাণ অবশ্যই ৳৫০ থেকে ৳৫০,০০০-এর মধ্যে হতে হবে"
-          : "Amount must be between ৳50 and ৳50,000"
+          ? "পরিমাণ অবশ্যই ৳১০ থেকে ৳৫০,০০০-এর মধ্যে হতে হবে"
+          : "Amount must be between ৳10 and ৳50,000"
       );
       setCashoutQuote(null);
       setRechargeQuote(null);
@@ -210,9 +210,9 @@ export default function Calculator({
             className="form-input"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            min="50"
+            min="10"
             max="50000"
-            step="10"
+            step="1"
             placeholder={isBn ? "পরিমাণ" : "Amount"}
             aria-label="Amount in Bangladeshi Taka"
             style={{ fontSize: "1.125rem", fontWeight: "600", paddingLeft: "32px", height: "42px" }}

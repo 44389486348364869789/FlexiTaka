@@ -68,6 +68,7 @@ class AdminService:
             # Record inventory increase (balance transferred into FlexiTaka receiving SIM)
             cashout_detail = await self.cashout_repo.get_by_order_id(order_id)
             if cashout_detail:
+                rec_sim = cashout_detail.get("receiving_sim_id")
                 await self.inventory_repo.record_movement(
                     operator_code=order["operator_code"],
                     amount_poisha=order["amount"],
@@ -75,9 +76,16 @@ class AdminService:
                     reason=f"Cash Out transfer received for order {order_id}",
                     actor_type=ActorType.STAFF,
                     actor_id=staff_id,
-                    receiving_sim_id=cashout_detail.get("receiving_sim_id"),
+                    receiving_sim_id=rec_sim,
                     order_id=order_id
                 )
+                if rec_sim:
+                    await self.sims_repo.record_cashout_receipt(
+                        receiving_sim_id=rec_sim,
+                        amount_poisha=order["amount"],
+                        order_id=order_id,
+                        transaction_reference=cashout_detail.get("transfer_reference")
+                    )
         elif decision.upper() == "REJECT":
             new_status = CashOutStatus.REJECTED
             note = f"Transfer rejected: {rejection_reason}"
@@ -175,6 +183,14 @@ class AdminService:
             receiving_sim_id=source_sim_id,
             order_id=order_id
         )
+
+        if source_sim_id:
+            await self.sims_repo.confirm_recharge_deduction(
+                receiving_sim_id=source_sim_id,
+                amount_poisha=recharge_face_value,
+                order_id=order_id,
+                operator_reference=processing_reference
+            )
 
         await self.audit_repo.log_action(
             actor_type="STAFF",

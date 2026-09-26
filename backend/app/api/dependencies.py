@@ -39,8 +39,20 @@ async def get_current_token_payload(
 ) -> Optional[Dict[str, Any]]:
     if not credentials:
         return None
+    raw_token = credentials.credentials
+    from app.db.redis import get_redis
+    r = get_redis()
+    if r:
+        try:
+            is_revoked = await r.exists(f"revoked_token:{raw_token}")
+            if is_revoked:
+                return None
+        except Exception:
+            pass
     try:
-        return decode_jwt_token(credentials.credentials)
+        payload = decode_jwt_token(raw_token)
+        payload["_raw_token"] = raw_token
+        return payload
     except Exception:
         return None
 

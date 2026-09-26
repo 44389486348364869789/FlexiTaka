@@ -70,8 +70,8 @@ export default function HowItWorksPage() {
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
                   {isBn
-                    ? "আপনার অপারেটর (GP, Robi বা Banglalink) নির্বাচন করুন, মোবাইল নম্বর ও পরিমাণ দিন (৳৫০ – ৳৫০,০০০)। স্ক্রিনে তৎক্ষণাৎ নির্দিষ্ট ফি ও প্রাপ্ত টাকার পরিমাণ প্রদর্শিত হবে।"
-                    : "Select your operator (GP, Robi, or Banglalink), enter your source phone number, and input the amount (৳50 – ৳50,000). FlexiTaka securely computes the fee and the exact payout amount you will receive in real time."}
+                    ? "আপনার অপারেটর (GP, Robi বা Banglalink) নির্বাচন করুন, মোবাইল নম্বর ও পরিমাণ দিন (৳১০ – ৳৫০,০০০)। স্ক্রিনে তৎক্ষণাৎ নির্দিষ্ট ফি ও প্রাপ্ত টাকার পরিমাণ প্রদর্শিত হবে।"
+                    : "Select your operator (GP, Robi, or Banglalink), enter your source phone number, and input the amount (৳10 – ৳50,000). FlexiTaka securely computes the fee and the exact payout amount you will receive in real time."}
                 </p>
               </div>
             </div>
@@ -136,8 +136,8 @@ export default function HowItWorksPage() {
                   lineHeight: 1.6
                 }}>
                   {isBn
-                    ? "আপনার অপারেটরের অফিশিয়াল ব্যালেন্স ট্রান্সফার অপশন (MyGP, MyRobi, MyBL অ্যাপ) অথবা নির্ধারিত অফিশিয়াল USSD চ্যানেল ডায়াল করুন।"
-                    : "Use your operator's official balance transfer option in MyGP, MyRobi, MyBL, or the operator's official USSD channel."}
+                    ? "সাপোর্টেড অপারেটরে একবারের SMS OTP দিয়ে সরাসরি যাচাই করুন, অথবা অপারেটরের অফিশিয়াল চ্যানেলের মাধ্যমে ট্রান্সফার সম্পন্ন করুন।"
+                    : "Verify directly via one-time SMS OTP on supported operators, or complete transfer through official operator channels."}
                 </div>
               </div>
             </div>
@@ -273,12 +273,12 @@ export default function HowItWorksPage() {
               </div>
               <div>
                 <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
-                  {isBn ? "bKash বা Nagad-এ পেমেন্ট করুন" : "Pay via bKash or Nagad"}
+                  {isBn ? "bKash, Nagad, Rocket বা বাংলা কিউআর-এ পেমেন্ট করুন" : "Pay via bKash, Nagad, Rocket, or Bangla QR"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
                   {isBn
-                    ? "স্ক্রিনে প্রদর্শিত FlexiTaka অ্যাকাউন্টে ছাড়কৃত টাকা পাঠান এবং পেমেন্ট TrxID ইনপুট দিন।"
-                    : "Send the discounted payment to the official FlexiTaka merchant/agent account displayed on screen and enter your transaction ID (TrxID)."}
+                    ? "স্ক্রিনে প্রদর্শিত FlexiTaka নির্ধারিত অ্যাকাউন্টে অর্ডার রেফারেন্স সহ পেমেন্ট করুন। পেমেন্ট SMS আসার সাথে সাথে স্বয়ংক্রিয়ভাবে যাচাই সম্পন্ন হয়।"
+                    : "Send payment to the FlexiTaka account displayed on screen with your Order ID in Reference. Payment is automatically verified upon incoming SMS receipt."}
                 </p>
               </div>
             </div>
@@ -300,15 +300,16 @@ export default function HowItWorksPage() {
               </div>
               <div>
                 <h3 style={{ fontSize: "1.125rem", fontWeight: "600", marginBottom: "6px" }}>
-                  {isBn ? "তাৎক্ষণিক এয়ারটাইম ডেলিভারি" : "Automated / Staff Top-Up Dispatch"}
+                  {isBn ? "স্বয়ংক্রিয় এয়ারটাইম রিচার্জ ডেলিভারি" : "Automatic Airtime Recharge Delivery"}
                 </h3>
                 <p style={{ color: "var(--text-secondary)", fontSize: "0.9375rem", lineHeight: 1.5 }}>
                   {isBn
-                    ? "পেমেন্ট নিশ্চিত হওয়ার সাথে সাথে নির্দিষ্ট নম্বরে সম্পূর্ণ রিচার্জ ফেস ভ্যালু স্বয়ংক্রিয়ভাবে পৌঁছে যায়।"
-                    : "As soon as payment is confirmed, operations staff sends the full recharge value from our retail SIM pool straight to the destination mobile number."}
+                    ? "পেমেন্ট SMS নিশ্চিত হওয়ার সাথে সাথে আমাদের স্বয়ংক্রিয় ইঞ্জিন তাৎক্ষণিকভাবে নির্দিষ্ট নম্বরে এয়ারটাইম ট্রান্সফার সম্পন্ন করে।"
+                    : "As soon as payment SMS is verified, our automated transfer engine immediately dispatches the airtime top-up directly to the recipient number."}
                 </p>
               </div>
             </div>
+
           </div>
 
           <div style={{ marginTop: "32px" }}>
@@ -336,8 +337,8 @@ export default function HowItWorksPage() {
             </h4>
             <p style={{ fontSize: "0.875rem", color: "#1E40AF", lineHeight: 1.6, margin: 0 }}>
               {isBn
-                ? "FlexiTaka কখনোই আপনার টেলিকম অ্যাকাউন্টের অ্যাক্সেস নেয় না। সকল ব্যালেন্স ট্রান্সফার আপনি নিজে টেলিকমের অফিশিয়াল অপশন ব্যবহার করে সম্পন্ন করেন। আমরা কখনোই আপনার সিম পিন চাই না বা সংরক্ষণ করি না। ব্যালেন্স ট্রান্সফারের দৈনিক সীমা BTRC ও সংশ্লিষ্ট মোবাইল অপারেটর কর্তৃক নির্ধারিত হয়।"
-                : "FlexiTaka does not access, control, or intercept your telecom account. All balance transfers are executed voluntarily by you using official telecom menus. We do not store, request, or verify telecom PINs. Operator transfer limits and charges are regulated by BTRC and the respective mobile operators."}
+                ? "FlexiTaka কখনোই আপনার সিম পিন (SIM PIN) বা অ্যাকাউন্ট পাসওয়ার্ড চাইবে না। প্রয়োজনে আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে FlexiTaka একবারের operator verification OTP চাইতে পারে। ব্যালেন্স ট্রান্সফারের দৈনিক সীমা BTRC ও সংশ্লিষ্ট মোবাইল অপারেটর কর্তৃক নির্ধারিত হয়।"
+                : "FlexiTaka will never ask for your SIM PIN or account password. An operator verification OTP may be requested when needed to securely authenticate your SIM account. Operator transfer limits and charges are regulated by BTRC and the respective mobile operators."}
             </p>
           </div>
         </div>

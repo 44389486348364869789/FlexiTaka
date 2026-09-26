@@ -8,23 +8,31 @@ import { formatBDT } from "@/lib/formatters";
 import StatusBadge from "@/components/StatusBadge";
 import FlexiLoading from "@/components/FlexiLoading";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, AlertCircle } from "lucide-react";
 
 export default function OrdersHistoryPage() {
   const { lang, tr, toBnDigits } = useLanguage();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filterService, setFilterService] = useState<"ALL" | ServiceType>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
   const loadOrders = async () => {
     setLoading(true);
+    setError(null);
     try {
       await api.ensureGuestSession();
       const list = await api.listOrders(50, 0);
       setOrders(list);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load orders", err);
+      setError(
+        err?.message ||
+          (lang === "bn"
+            ? "অর্ডার তালিকা লোড করতে ব্যর্থ হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।"
+            : "Failed to load orders list. Please try again.")
+      );
     } finally {
       setLoading(false);
     }
@@ -146,6 +154,53 @@ export default function OrdersHistoryPage() {
         {loading ? (
           <div style={{ textAlign: "center", padding: "48px 16px" }}>
             <FlexiLoading size="md" text={tr.common.loading} />
+          </div>
+        ) : error ? (
+          <div style={{ textAlign: "center", padding: "44px 16px" }}>
+            <div
+              style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "50%",
+                backgroundColor: "#FEE2E2",
+                color: "#DC2626",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "14px",
+              }}
+            >
+              <AlertCircle size={26} />
+            </div>
+            <h3
+              style={{
+                fontSize: "1.125rem",
+                fontWeight: "600",
+                color: "#DC2626",
+                marginBottom: "6px",
+              }}
+            >
+              {lang === "bn" ? "অর্ডার লোড করতে সমস্যা হয়েছে" : "Failed to Load Orders"}
+            </h3>
+            <p
+              style={{
+                color: "var(--text-secondary)",
+                fontSize: "0.875rem",
+                maxWidth: "420px",
+                margin: "0 auto 20px auto",
+              }}
+            >
+              {error}
+            </p>
+            <button
+              type="button"
+              onClick={loadOrders}
+              className="btn btn-primary btn-sm"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", margin: "0 auto" }}
+            >
+              <RefreshCw size={14} />
+              <span>{lang === "bn" ? "পুনরায় চেষ্টা করুন" : "Retry"}</span>
+            </button>
           </div>
         ) : filteredOrders.length === 0 ? (
           <div style={{ textAlign: "center", padding: "40px 16px" }}>

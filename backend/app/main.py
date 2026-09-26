@@ -11,7 +11,7 @@ from typing import AsyncGenerator
 from bson import ObjectId
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import ENCODERS_BY_TYPE
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -43,11 +43,26 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     db = get_database()
     await ensure_indexes(db)
 
-    # Start background transfer worker
-    session_service = OperatorSessionService(db)
-    transfer_engine = TransferEngine(db, session_service)
-    _transfer_worker = TransferWorker(db, transfer_engine)
-    _transfer_worker.start()
+    # Seed & Cache Authoritative Operator Prefixes
+    from app.db.repositories.operator_prefix_repo import OperatorPrefixRepository
+    from app.modules.operators.resolver import refresh_prefix_cache
+    prefix_repo = OperatorPrefixRepository(db)
+    await prefix_repo.ensure_indexes_and_seed()
+    await refresh_prefix_cache(db)
+
+    # Health & Integrity Audit for Receiving SIMs
+    from app.db.repositories.sims_repo import ReceivingSimsRepository
+    sims_repo = ReceivingSimsRepository(db)
+    await sims_repo.ensure_default_sims()
+    sim_audit = await sims_repo.audit_sim_integrity()
+    logger.info("Startup Receiving SIMs Audit: %s valid, %s mismatched/blocked", sim_audit["valid_sims"], sim_audit["invalid_mismatched_sims"])
+
+    # Start background transfer worker if not running under test runner
+    if getattr(settings, "APP_ENV", "") != "test":
+        session_service = OperatorSessionService(db)
+        transfer_engine = TransferEngine(db, session_service)
+        _transfer_worker = TransferWorker(db, transfer_engine)
+        _transfer_worker.start()
 
     logger.info("FlexiTaka Backend API startup complete. Ready for traffic.")
     yield
@@ -107,13 +122,15 @@ async def request_tracing_middleware(request: Request, call_next):
 @app.exception_handler(FlexiTakaException)
 async def flexitaka_exception_handler(request: Request, exc: FlexiTakaException):
     request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+    err_code = exc.code.value if hasattr(exc.code, "value") else str(exc.code)
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "success": False,
             "error": {
-                "code": exc.code,
+                "code": err_code,
                 "message": exc.message,
+                "retryable": getattr(exc, "retryable", False),
                 "details": exc.details
             },
             "request_id": request_id
@@ -138,6 +155,25 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 "code": "VALIDATION_ERROR",
                 "message": "Invalid request payload",
                 "details": errors
+            },
+            "request_id": request_id
+        },
+        headers={"X-Request-ID": request_id}
+    )
+
+
+@app.exception_handler(ResponseValidationError)
+async def response_validation_exception_handler(request: Request, exc: ResponseValidationError):
+    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
+    logger.error("Response validation error on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "success": False,
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": "Response data formatting error",
+                "details": str(exc)
             },
             "request_id": request_id
         },

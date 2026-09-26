@@ -55,13 +55,24 @@ export const commonTranslations = {
         privacy: "গোপনীয়তা নীতি",
       },
       securityAdvisoryTitle: "নিরাপত্তা নির্দেশনা:",
-      securityAdvisoryBody: "FlexiTaka কখনোই আপনার সিম পিন (SIM PIN), MyGP/MyRobi/MyBL অ্যাকাউন্টের পাসওয়ার্ড কিংবা টেলিকম এসএমএস ভেরিফিকেশন OTP চাইবে না। ব্যালেন্স ট্রান্সফারের সকল প্রক্রিয়া আপনি নিজে অফিশিয়াল অপারেটর ইউএসএসডি (USSD) ডায়াল কোড বা ভেরিফায়েড অপারেটর অ্যাপের মাধ্যমে সম্পন্ন করবেন।",
+      securityAdvisoryBody: "আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে FlexiTaka একবারের operator verification OTP চাইতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।",
       copyright: "© ২০২৬ FlexiTaka. সর্বস্বত্ব সংরক্ষিত।",
       securityStatement: "নিরাপদ ও নন-কাস্টডিয়াল • কোনো ক্রেডেনশিয়াল শেয়ারিং নয়",
       madeIn: "বাংলাদেশের জন্য তৈরি",
       switchToEnglish: "English",
       switchToBangla: "বাংলা",
     },
+
+    // Centralized Security Messages
+    security: {
+      rechargeNotice: "রিচার্জের পেমেন্ট আপনার পেমেন্ট SMS থেকে স্বয়ংক্রিয়ভাবে যাচাই করা হয়।",
+      cashoutNotice: "আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে operator verification OTP চাওয়া হতে পারে।",
+      operatorOtpNotice: "আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে FlexiTaka একবারের operator verification OTP চাইতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।",
+      operatorOtpShortNotice: "নিরাপত্তা তথ্য: প্রয়োজনে আপনার SIM অ্যাকাউন্ট যাচাই করতে operator verification OTP চাওয়া হতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।",
+      simPinPasswordWarning: "আমরা কখনো আপনার SIM PIN বা account password চাইব না।",
+      trustNoteDefault: "আমরা কখনো আপনার SIM PIN বা account password চাইব না",
+    },
+
 
     // Buttons & Common Actions
     actions: {
@@ -235,13 +246,24 @@ export const commonTranslations = {
         privacy: "Privacy Policy",
       },
       securityAdvisoryTitle: "SECURITY ADVISORY:",
-      securityAdvisoryBody: "FlexiTaka will NEVER ask for your SIM PIN, MyGP/MyRobi/MyBL account passwords, or telecom SMS verification OTPs. All balance transfers are executed strictly by you via official operator USSD dial codes or verified operator apps.",
+      securityAdvisoryBody: "FlexiTaka may request a one-time operator verification OTP when required to securely authenticate your SIM account. We will never ask for your SIM PIN or account password.",
       copyright: "© 2026 FlexiTaka. All rights reserved.",
       securityStatement: "Secure & Non-Custodial • Zero Credential Sharing",
       madeIn: "Made for Bangladesh",
       switchToEnglish: "English",
       switchToBangla: "বাংলা",
     },
+
+    // Centralized Security Messages
+    security: {
+      rechargeNotice: "Recharge payment is verified automatically from your payment SMS.",
+      cashoutNotice: "An operator verification OTP may be requested when needed to authenticate your SIM.",
+      operatorOtpNotice: "FlexiTaka may request a one-time operator verification OTP when required to securely authenticate your SIM account. We will never ask for your SIM PIN or account password.",
+      operatorOtpShortNotice: "Security: An operator verification OTP may be requested when needed to authenticate your SIM account. We will never ask for your SIM PIN or account password.",
+      simPinPasswordWarning: "We will never ask for your SIM PIN or account password.",
+      trustNoteDefault: "We will never ask for your SIM PIN or account password",
+    },
+
 
     // Buttons & Common Actions
     actions: {

@@ -51,8 +51,6 @@ async def clean_db():
     yield db
     if r:
         await r.flushdb()
-    await close_redis_connection()
-    await close_mongo_connection()
 
 
 @pytest_asyncio.fixture

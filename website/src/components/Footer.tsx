@@ -8,7 +8,7 @@ import LanguageSwitcher from "./LanguageSwitcher";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 export default function Footer() {
-  const { isBn } = useLanguage();
+  const { isBn, t } = useLanguage();
 
   return (
     <footer className="site-footer">
@@ -180,9 +180,12 @@ export default function Footer() {
             <strong className="footer-advisory-title">
               {isBn ? "নিরাপত্তা নির্দেশনা:" : "Important Security Advisory:"}
             </strong>{" "}
-            {isBn
-              ? "FlexiTaka কখনো আপনার SIM PIN, MyGP/MyRobi/MyBL অ্যাকাউন্টের পাসওয়ার্ড বা টেলিকম SMS verification OTP চাইবে না। সকল ব্যালেন্স ট্রান্সফার কেবলমাত্র আপনার নিজের ফোনের অফিশিয়াল USSD ডায়াল কোড বা অফিশিয়াল অপারেটর অ্যাপের মাধ্যমে সম্পন্ন হয়।"
-              : "FlexiTaka will NEVER ask you for your SIM PIN, MyGP/MyRobi/MyBL account passwords, or telecom SMS verification OTPs. All balance transfers are executed strictly by you via official operator USSD dial codes or verified operator apps."}
+            {t(
+              "common.footer.securityAdvisoryBody",
+              isBn
+                ? "আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে FlexiTaka একবারের operator verification OTP চাইতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।"
+                : "FlexiTaka may request a one-time operator verification OTP when required to securely authenticate your SIM account. We will never ask for your SIM PIN or account password."
+            )}
           </div>
         </div>
 

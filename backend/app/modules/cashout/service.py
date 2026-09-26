@@ -15,11 +15,11 @@ from app.core.constants import (
 )
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.core.logging import logger
-from app.core.security import generate_order_id, generate_tracking_token
+from app.core.security import derive_default_pin, generate_order_id, generate_tracking_token
 from app.db.repositories.cashout_repo import CashOutRepository
 from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.sims_repo import ReceivingSimsRepository
-from app.modules.operators.resolver import normalize_msisdn
+from app.modules.operators.resolver import normalize_msisdn, resolve_operator_from_msisdn
 from app.modules.operators.session_manager import OperatorSessionService
 from app.modules.pricing.service import PricingService
 from app.modules.transfers.engine import TransferEngine
@@ -56,20 +56,86 @@ class CashOutService:
         if not user_id and not guest_session_id:
             raise ValidationException("Either user_id or guest_session_id is required", code=ErrorCode.AUTH_REQUIRED)
 
+        from app.modules.operators.resolver import validate_operator_match
+        validate_operator_match(operator_code, source_mobile_number)
+
         source_phone = normalize_msisdn(source_mobile_number)
         num_amount = int(float(amount_bdt))
+
+        # Authoritative Quota Precheck before financial reservation or chunk creation
+        session_data = await self.session_service.get_session(source_phone, operator_code)
+        precheck = await self.transfer_engine.calculate_quota_and_executable(
+            source_number=source_phone,
+            operator_code=operator_code,
+            requested_amount_bdt=num_amount,
+            session_data=session_data
+        )
+        if not precheck.get("can_execute_full"):
+            max_exec = precheck.get("max_executable_now_bdt", 0)
+            reason = "সীমাবদ্ধতার"
+            if precheck.get("is_cooldown_active"):
+                reason = f"অপারেটর কুলডাউন চালু আছে ({precheck['active_cooldown_remaining_seconds']} সেকেন্ড বাকি)"
+            elif precheck.get("remaining_transfer_count") == 0:
+                reason = "ট্রান্সফার গণনার সীমা অতিক্রম করেছে (Remaining transfer count: 0)"
+            elif precheck.get("remaining_daily_amount_bdt") is not None and precheck.get("remaining_daily_amount_bdt") < num_amount:
+                reason = f"দৈনিক কোটা অতিক্রম করেছে (Daily limit remaining: ৳{precheck['remaining_daily_amount_bdt']})"
+            elif precheck.get("remaining_monthly_amount_bdt") is not None and precheck.get("remaining_monthly_amount_bdt") < num_amount:
+                reason = f"মাসিক কোটা অতিক্রম করেছে (Monthly limit remaining: ৳{precheck['remaining_monthly_amount_bdt']})"
+            elif precheck.get("live_balance_bdt") is not None and precheck.get("live_balance_bdt") < num_amount:
+                reason = f"পর্যাপ্ত ব্যালান্স নেই (Live balance: ৳{precheck['live_balance_bdt']})"
+
+            err_code = ErrorCode.INSUFFICIENT_BALANCE if (precheck.get("live_balance_bdt") is not None and precheck.get("live_balance_bdt") < num_amount) else "QUOTA_LIMIT_EXCEEDED"
+            raise ValidationException(
+                f"অনুরোধকৃত ৳{num_amount} এর পরিবর্তে বর্তমানে সর্বোচ্চ ৳{max_exec} ক্যাশ আউট সম্ভব। কারণ: {reason} "
+                f"(Maximum executable now is ৳{max_exec} due to operator quota/count/balance limit. Requested: ৳{num_amount})",
+                code=err_code,
+                details=precheck
+            )
 
         # 1. Authoritative Pricing Quote
         quote = await self.pricing_service.calculate_cashout_quote(operator_code, amount_bdt)
 
-        # 2. Server-side Receiving SIM Selection
+        # 2. Server-side Receiving SIM Selection (Strict same-operator match)
         receiving_sim = await self.sims_repo.select_best_sim(operator_code, quote["source_amount_poisha"])
-        receiving_sim_id = receiving_sim["receiving_sim_id"] if receiving_sim else None
-        receiving_number = receiving_sim["mobile_number"] if receiving_sim else "01700000000"
-        sim_label = receiving_sim.get("label", f"{operator_code} Central Receiver") if receiving_sim else f"{operator_code} Receiver"
+        if not receiving_sim:
+            await self.sims_repo.ensure_default_sims()
+            receiving_sim = await self.sims_repo.select_best_sim(operator_code, quote["source_amount_poisha"])
+
+        if not receiving_sim:
+            raise ValidationException(
+                f"No active receiving SIM available for operator {operator_code}. Cannot dispatch Cash Out transfer.",
+                code="NO_RECEIVING_SIM_AVAILABLE"
+            )
+
+        receiving_number = normalize_msisdn(receiving_sim["mobile_number"])
+        receiving_sim_id = receiving_sim["receiving_sim_id"]
+        sim_label = receiving_sim.get("label", f"{operator_code} Central Receiver")
+
+        # Authoritative Prefix Validation: receiving SIM must match source operator
+        dest_op = resolve_operator_from_msisdn(receiving_number)
+        dest_op_str = dest_op.value if hasattr(dest_op, "value") else str(dest_op)
+        src_op_str = operator_code.value if hasattr(operator_code, "value") else str(operator_code)
+
+        if dest_op_str.upper() != src_op_str.upper():
+            logger.critical(
+                "OPERATOR MISMATCH DETECTED: Source %s (%s) does not match destination receiving SIM %s (%s)",
+                source_phone, src_op_str, receiving_number, dest_op_str
+            )
+            raise ValidationException(
+                f"Receiving SIM operator mismatch: Source operator is {src_op_str} but receiving SIM is {dest_op_str}. Operation aborted.",
+                code="OPERATOR_MISMATCH"
+            )
 
         order_id = generate_order_id()
-        transfer_pin = pin or source_phone[-4:]  # Standard requirement: last 4 digits of SIM number
+        # Resolve PIN securely: session/linked SIM encrypted PIN or derived default PIN
+        stored_pin = await self.session_service.get_session_pin(source_phone, operator_code)
+        if pin:
+            effective_pin = str(pin).strip()
+            await self.session_service.save_session_pin(source_phone, operator_code, effective_pin)
+        elif stored_pin:
+            effective_pin = stored_pin
+        else:
+            effective_pin = derive_default_pin(source_phone)
 
         pricing_snapshot = {
             "source_amount_bdt": str(quote["source_amount_bdt"]),
@@ -82,7 +148,7 @@ class CashOutService:
             "pricing_rule_version": quote["pricing_rule_version"]
         }
 
-        # 3. Create Primary Order Record
+        # 3. Create Primary Order Record (Never store plaintext PIN in MongoDB)
         order_doc = {
             "order_id": order_id,
             "service_type": ServiceType.CASH_OUT,
@@ -97,7 +163,7 @@ class CashOutService:
             "metadata": {
                 "receiving_mobile_number": receiving_number,
                 "receiving_sim_id": receiving_sim_id,
-                "transfer_pin": transfer_pin,
+                "transfer_pin_configured": True,
                 "payout_method": payout_method,
                 "payout_account": payout_account
             }
@@ -130,7 +196,7 @@ class CashOutService:
             total_amount_bdt=num_amount
         )
 
-        # 6. Execute First Chunk if active session exists
+        # 6. Execute First / Eligible Chunks if active session exists
         session_data = await self.session_service.get_session(source_phone, operator_code)
         transfer_result = {}
         if session_data:
@@ -139,9 +205,9 @@ class CashOutService:
                 {"order_id": order_id},
                 {"$set": {"status": "TRANSFER_IN_PROGRESS"}}
             )
-            transfer_result = await self.transfer_engine.execute_next_chunk(
+            transfer_result = await self.transfer_engine.execute_all_eligible_chunks(
                 order_id=order_id,
-                pin=transfer_pin,
+                pin=effective_pin,
                 session_data=session_data
             )
 
@@ -183,13 +249,14 @@ class CashOutService:
 
         source_phone = order["mobile_number"]
         operator_code = order["operator_code"]
-        transfer_pin = pin or order.get("metadata", {}).get("transfer_pin") or source_phone[-4:]
+        stored_pin = await self.session_service.get_session_pin(source_phone, operator_code)
+        effective_pin = pin or stored_pin or derive_default_pin(source_phone)
 
         session_data = await self.session_service.get_session(source_phone, operator_code)
         if not session_data:
             raise ValidationException(f"No operator session for {source_phone}. Please authenticate.", code="OPERATOR_AUTH_REQUIRED")
 
-        return await self.transfer_engine.execute_next_chunk(order_id, transfer_pin, session_data)
+        return await self.transfer_engine.execute_next_chunk(order_id, effective_pin, session_data)
 
     async def confirm_transfer_and_proof(
         self,
@@ -211,9 +278,138 @@ class CashOutService:
         updated = await self.orders_repo.transition_status(
             order_id=order_id,
             expected_current_status=order["status"],
-            new_status=CashOutStatus.TRANSFER_RECEIVED,
+            new_status=CashOutStatus.UNDER_VERIFICATION,
             actor_type=ActorType.USER,
             actor_id=actor_id,
             note=f"Transfer reference provided: {transfer_reference}"
         )
         return updated
+
+    async def precheck_cashout(
+        self,
+        operator_code: str,
+        source_mobile_number: str,
+        amount_bdt: Decimal
+    ) -> Dict[str, Any]:
+        """Authoritative Quota Precheck endpoint service."""
+        from app.modules.operators.resolver import validate_operator_match
+        validate_operator_match(operator_code, source_mobile_number)
+        source_phone = normalize_msisdn(source_mobile_number)
+        num_amount = int(amount_bdt)
+
+        session_data = await self.session_service.get_session(source_phone, operator_code)
+        return await self.transfer_engine.calculate_quota_and_executable(
+            source_number=source_phone,
+            operator_code=operator_code,
+            requested_amount_bdt=num_amount,
+            session_data=session_data
+        )
+
+    def _verify_order_ownership(
+        self,
+        order: Dict[str, Any],
+        user_id: Optional[str] = None,
+        guest_session_id: Optional[str] = None,
+        tracking_token: Optional[str] = None
+    ) -> None:
+        """Verifies order ownership for authenticated users and guest sessions."""
+        from app.core.exceptions import ForbiddenException
+        from app.core.security import verify_tracking_token
+
+        is_owner = False
+        if not order.get("user_id") and not order.get("guest_session_id"):
+            is_owner = True
+        elif user_id and order.get("user_id") == user_id:
+            is_owner = True
+        elif guest_session_id and order.get("guest_session_id") == guest_session_id:
+            is_owner = True
+        elif tracking_token and order.get("guest_session_id"):
+            if verify_tracking_token(order["order_id"], order["guest_session_id"], tracking_token):
+                is_owner = True
+
+        if not is_owner:
+            raise ForbiddenException("You do not have permission to access or modify this order.")
+
+    async def verify_next_chunk_otp(
+        self,
+        order_id: str,
+        otp: str,
+        user_id: Optional[str] = None,
+        guest_session_id: Optional[str] = None,
+        tracking_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Consumes one-time password for the next transfer chunk (OTP_PER_TRANSFER).
+        Never logs or stores plaintext OTP.
+        """
+        order = await self.orders_repo.get_by_order_id(order_id)
+        if not order:
+            raise NotFoundException(f"Order {order_id} not found", code=ErrorCode.ORDER_NOT_FOUND)
+        self._verify_order_ownership(order, user_id, guest_session_id, tracking_token)
+
+        source_phone = order["mobile_number"]
+        operator_code = order["operator_code"]
+        stored_pin = await self.session_service.get_session_pin(source_phone, operator_code)
+        session_data = await self.session_service.get_session(source_phone, operator_code)
+
+        return await self.transfer_engine.execute_all_eligible_chunks(
+            order_id=order_id,
+            pin=stored_pin,
+            session_data=session_data,
+            otp=otp.strip()
+        )
+
+    async def continue_remaining(
+        self,
+        order_id: str,
+        pin: Optional[str] = None,
+        otp: Optional[str] = None,
+        user_id: Optional[str] = None,
+        guest_session_id: Optional[str] = None,
+        tracking_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Continues partial Cash Out order ONLY from unfinished chunks.
+        Re-checks live balance, session, quota, count, cooldown, and PIN.
+        Never reruns already successful chunks.
+        """
+        order = await self.orders_repo.get_by_order_id(order_id)
+        if not order:
+            raise NotFoundException(f"Order {order_id} not found", code=ErrorCode.ORDER_NOT_FOUND)
+        self._verify_order_ownership(order, user_id, guest_session_id, tracking_token)
+
+        source_phone = order["mobile_number"]
+        operator_code = order["operator_code"]
+        stored_pin = await self.session_service.get_session_pin(source_phone, operator_code)
+        effective_pin = pin or stored_pin
+        session_data = await self.session_service.get_session(source_phone, operator_code)
+
+        return await self.transfer_engine.continue_remaining_chunks(
+            order_id=order_id,
+            pin=effective_pin,
+            otp=otp,
+            session_data=session_data
+        )
+
+    async def cancel_remaining(
+        self,
+        order_id: str,
+        actor_id: str = "customer",
+        user_id: Optional[str] = None,
+        guest_session_id: Optional[str] = None,
+        tracking_token: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Finalizes confirmed received amount, cancels uncompleted chunks,
+        and recalculates payout authoritatively based ONLY on confirmed received amount.
+        """
+        order = await self.orders_repo.get_by_order_id(order_id)
+        if not order:
+            raise NotFoundException(f"Order {order_id} not found", code=ErrorCode.ORDER_NOT_FOUND)
+        self._verify_order_ownership(order, user_id, guest_session_id, tracking_token)
+
+        return await self.transfer_engine.cancel_remaining_chunks(
+            order_id=order_id,
+            pricing_service=self.pricing_service,
+            actor_id=actor_id
+        )

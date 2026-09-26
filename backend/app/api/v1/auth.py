@@ -60,3 +60,20 @@ async def admin_login(
 ):
     service = AuthService(users_repo)
     return await service.admin_login(payload.email, payload.password)
+
+
+@router.post("/logout")
+async def logout(
+    request: Request
+):
+    """
+    Revoke current authentication token and invalidate session.
+    """
+    auth_header = request.headers.get("authorization") or ""
+    if auth_header.lower().startswith("bearer "):
+        raw_token = auth_header[7:].strip()
+        from app.db.redis import get_redis
+        r = get_redis()
+        if r and raw_token:
+            await r.set(f"revoked_token:{raw_token}", "1", ex=86400 * 7)
+    return {"success": True, "message": "Logged out successfully"}

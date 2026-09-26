@@ -25,6 +25,7 @@ class OperatorListResponse(BaseModel):
 # Operator Authentication & Balance Schemas
 class OperatorOtpRequest(BaseModel):
     phone: str = Field(..., description="Bangladeshi mobile number (e.g. 01725352007, 01981475404, 01864154746)")
+    operator_code: Optional[str] = Field(None, description="Optional selected operator to validate match against phone")
 
 
 class OperatorOtpResponse(BaseModel):
@@ -38,6 +39,7 @@ class OperatorOtpResponse(BaseModel):
 class OperatorOtpVerifyRequest(BaseModel):
     phone: str = Field(..., description="Mobile number being verified")
     otp: str = Field(..., description="SMS OTP received from operator")
+    operator_code: Optional[str] = Field(None, description="Optional selected operator to validate match against phone")
     reference_id: Optional[str] = Field(None, description="Operator reference ID if returned from request-otp")
     guest_session_id: Optional[str] = Field(None, description="Optional guest session to link orders")
 

@@ -13,7 +13,7 @@ from app.core.security import generate_order_id, generate_tracking_token
 from app.db.redis import get_redis
 from app.db.repositories.orders_repo import OrdersRepository
 from app.db.repositories.recharge_repo import RechargeRepository
-from app.modules.auth.service import normalize_bd_phone
+from app.modules.operators.resolver import normalize_msisdn, validate_operator_match
 from app.modules.pricing.service import PricingService
 
 
@@ -39,25 +39,12 @@ class RechargeService:
         if not user_id and not guest_session_id:
             raise ValidationException("Either user_id or guest_session_id is required")
 
-        dest_phone = normalize_bd_phone(recharge_mobile_number)
-
-        # Enforce mobile OTP verification if enabled
-        if getattr(settings, "REQUIRE_ORDER_OTP", False):
-            r = get_redis()
-            is_verified = False
-            if r:
-                if guest_session_id and await r.get(f"phone_verified:{guest_session_id}:{dest_phone}"):
-                    is_verified = True
-                elif await r.get(f"phone_verified:{dest_phone}"):
-                    is_verified = True
-            if not is_verified:
-                raise ValidationException(
-                    "মোবাইল নম্বর যাচাই করা আবশ্যক : Mobile number must be verified via OTP before placing an order",
-                    code=ErrorCode.OTP_REQUIRED
-                )
+        validate_operator_match(operator_code, recharge_mobile_number)
+        dest_phone = normalize_msisdn(recharge_mobile_number)
 
         # 1. Authoritative Pricing Quote
         quote = await self.pricing_service.calculate_recharge_quote(operator_code, recharge_amount_bdt)
+
 
         order_id = generate_order_id()
 
@@ -105,6 +92,12 @@ class RechargeService:
 
         tracking_token = generate_tracking_token(order_id, guest_session_id) if guest_session_id else None
 
+        from app.db.repositories.payment_accounts_repo import PaymentAccountsRepository
+        payment_acc_repo = PaymentAccountsRepository(self.orders_repo.db)
+        default_acc = await payment_acc_repo.get_by_method("BKASH")
+        payment_num = default_acc.get("account_number", "01981475404") if default_acc else "01981475404"
+        payment_disp = default_acc.get("display_number", "01981475404") if default_acc else "01981475404"
+
         logger.info("Recharge order created: %s | Amount: %s", order_id, quote["recharge_amount_bdt"])
 
         return {
@@ -119,6 +112,9 @@ class RechargeService:
             "discount_amount_poisha": quote["discount_amount_poisha"],
             "customer_pay_amount_bdt": quote["customer_pay_amount_bdt"],
             "customer_pay_amount_poisha": quote["customer_pay_amount_poisha"],
+            "payment_account_number": payment_num,
+            "payment_display_number": payment_disp,
             "tracking_token": tracking_token,
             "created_at": saved_order["created_at"]
         }
+

@@ -114,3 +114,47 @@ class OperatorSessionService:
             "operator_code": operator_code.upper()
         })
         return res.deleted_count > 0
+
+    async def save_session_pin(self, msisdn: str, operator_code: str, plain_pin: str) -> None:
+        """Encrypts and securely stores the transfer PIN in the operator session."""
+        from app.core.security import encrypt_pin
+        normalized = normalize_msisdn(msisdn)
+        now = int(time.time())
+        encrypted = encrypt_pin(plain_pin)
+        await self.collection.update_one(
+            {"msisdn": normalized, "operator_code": operator_code.upper()},
+            {"$set": {
+                "encrypted_transfer_pin": encrypted,
+                "transfer_pin_configured": True,
+                "pin_status": "CONFIGURED",
+                "pin_source": "OPERATOR_SESSION",
+                "pin_last_changed_at": now,
+                "updated_at": now
+            }}
+        )
+        logger.info("Transfer PIN securely encrypted & stored in operator session for %s", normalized)
+
+    async def get_session_pin(self, msisdn: str, operator_code: str) -> Optional[str]:
+        """Retrieves and decrypts the stored transfer PIN from the session, if present."""
+        from app.core.security import decrypt_pin
+        normalized = normalize_msisdn(msisdn)
+        doc = await self.collection.find_one({
+            "msisdn": normalized,
+            "operator_code": operator_code.upper()
+        })
+        if not doc or not doc.get("encrypted_transfer_pin"):
+            return None
+        return decrypt_pin(doc["encrypted_transfer_pin"])
+
+    async def mark_session_pin_invalid(self, msisdn: str, operator_code: str) -> None:
+        """Marks the transfer PIN as INVALID in the session upon operator rejection."""
+        normalized = normalize_msisdn(msisdn)
+        now = int(time.time())
+        await self.collection.update_one(
+            {"msisdn": normalized, "operator_code": operator_code.upper()},
+            {"$set": {
+                "pin_status": "INVALID",
+                "updated_at": now
+            }}
+        )
+        logger.warning("Transfer PIN marked INVALID in operator session for %s", normalized)

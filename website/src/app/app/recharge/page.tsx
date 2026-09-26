@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { api } from "@/lib/api";
-import { OperatorCode, PayoutMethod, RechargeOrderCreated, RechargeQuote } from "@/lib/types";
+import { api, detectOperatorFromPhone, getStoredAuthToken, isTerminalStatus, normalizeBdPhone11 } from "@/lib/api";
+import { LinkedSim, OperatorCode, PaymentAccount, PayoutMethod, RechargeOrderCreated, RechargeQuote } from "@/lib/types";
 import {
   AlertCircle,
   ArrowLeft,
@@ -11,15 +11,14 @@ import {
   CheckCircle2,
   Copy,
   RefreshCw,
-  ShieldCheck,
+  Smartphone,
 } from "lucide-react";
 import OperatorSelector from "@/components/OperatorSelector";
 import LiveQuoteCard from "@/components/LiveQuoteCard";
 import StepIndicator from "@/components/StepIndicator";
 import TrustNote from "@/components/TrustNote";
 import WalletSelector from "@/components/WalletSelector";
-import OtpVerificationModal from "@/components/OtpVerificationModal";
-import { formatBDT } from "@/lib/formatters";
+import { formatBDT, formatApiErrorMessage } from "@/lib/formatters";
 import { useLanguage } from "@/i18n/LanguageContext";
 
 function RechargeWizardContent() {
@@ -41,20 +40,22 @@ function RechargeWizardContent() {
   const [payerAccount, setPayerAccount] = useState<string>("");
   const [paymentTrxId, setPaymentTrxId] = useState<string>("");
 
+  // Saved Linked SIMs State
+  const [linkedSims, setLinkedSims] = useState<LinkedSim[]>([]);
+  const [selectedSimId, setSelectedSimId] = useState<string | null>(null);
+
   // Live Server Discount Quote
   const [quote, setQuote] = useState<RechargeQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
 
-  // Order  // Order state
+  // Authoritative DB Payment Accounts (bKash, Nagad, Rocket, Bangla QR)
+  const [paymentAccounts, setPaymentAccounts] = useState<PaymentAccount[]>([]);
+
+  // Order state
   const [createdOrder, setCreatedOrder] = useState<RechargeOrderCreated | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  // OTP Verification state
-  const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
-  const [otpModalOpen, setOtpModalOpen] = useState(false);
-  const [otpSending, setOtpSending] = useState(false);
 
   // Input refs for smooth progressive focus
   const phoneRef = useRef<HTMLInputElement>(null);
@@ -62,12 +63,25 @@ function RechargeWizardContent() {
 
   // Validation helpers
   const isOperatorSelected = Boolean(operator);
-  const cleanedPhone = destPhone.replace(/[\s\-\+]/g, "").replace(/^88/, "");
+  const cleanedPhone = normalizeBdPhone11(destPhone);
   const isPhoneValid = Boolean(cleanedPhone.match(/^01[3-9]\d{8}$/));
-  const isPhoneVerified = Boolean(verifiedPhone && verifiedPhone === cleanedPhone);
+
+  const detectedOp = detectOperatorFromPhone(cleanedPhone);
+  const isOperatorMismatch = Boolean(operator && detectedOp && operator !== detectedOp);
 
   const numAmount = parseFloat(amount);
-  const isAmountValid = !isNaN(numAmount) && numAmount >= 50 && numAmount <= 50000;
+  const isAmountValid = !isNaN(numAmount) && numAmount >= 10 && numAmount <= 50000;
+
+  // Fetch Authoritative Payment Accounts from DB on load
+  useEffect(() => {
+    api.getPaymentAccounts()
+      .then((accounts) => {
+        if (accounts && accounts.length > 0) {
+          setPaymentAccounts(accounts);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Compute current step for the top step indicator: 1 Operator -> 2 Number -> 3 Amount -> 4 Review
   let currentStep: 1 | 2 | 3 | 4 = 1;
@@ -80,6 +94,36 @@ function RechargeWizardContent() {
   } else {
     currentStep = 4;
   }
+
+  // Fetch Authoritative Linked SIMs for logged-in user
+  useEffect(() => {
+    const token = getStoredAuthToken();
+    if (token) {
+      api.getLinkedSims()
+        .then((sims) => {
+          if (Array.isArray(sims)) {
+            setLinkedSims(sims);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const verifiedSims = linkedSims.filter((s) => s.status === "VERIFIED");
+
+  const handleSelectLinkedSim = (sim: LinkedSim) => {
+    setSelectedSimId(sim.sim_id);
+    setDestPhone(sim.phone);
+    setOperator(sim.operator_code as OperatorCode);
+    setActionError(null);
+    amountRef.current?.focus();
+  };
+
+  const handleClearSelectedSim = () => {
+    setSelectedSimId(null);
+    setDestPhone("");
+    phoneRef.current?.focus();
+  };
 
   // Smooth auto-focus when next step reveals
   useEffect(() => {
@@ -96,7 +140,7 @@ function RechargeWizardContent() {
 
   // Fetch live recharge quote from backend strictly when inputs are valid
   const updateQuote = async () => {
-    if (!operator || !isAmountValid) {
+    if (!operator || !isAmountValid || isOperatorMismatch) {
       setQuote(null);
       setQuoteLoading(false);
       setQuoteError(null);
@@ -106,7 +150,7 @@ function RechargeWizardContent() {
     setQuoteError(null);
     setQuoteLoading(true);
     try {
-      const q = await api.getRechargeQuote(operator as OperatorCode, amount);
+      const q = await api.getRechargeQuote(operator as OperatorCode, amount, cleanedPhone);
       setQuote(q);
     } catch {
       // Fallback discount calculation if offline
@@ -129,56 +173,33 @@ function RechargeWizardContent() {
   };
 
   useEffect(() => {
-    if (operator && isAmountValid) {
+    if (operator && isAmountValid && !isOperatorMismatch) {
       updateQuote();
     } else {
       setQuote(null);
       setQuoteLoading(false);
       if (amount.trim() !== "" && !isAmountValid) {
-        setQuoteError(lang === "bn" ? "পরিমাণ অবশ্যই ৳৫০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳50 and ৳50,000");
+        setQuoteError(lang === "bn" ? "পরিমাণ অবশ্যই ৳১০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳10 and ৳50,000");
       } else {
         setQuoteError(null);
       }
     }
-  }, [operator, amount, isAmountValid, lang]);
+  }, [operator, amount, isAmountValid, lang, isOperatorMismatch]);
 
-  // Handle OTP Trigger & Order Creation
-  const handleTriggerOtp = async () => {
-    if (!isPhoneValid) {
-      setActionError(lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Please enter a valid 11-digit Bangladesh mobile number (e.g. 01712345678)");
-      return;
-    }
-    setActionError(null);
-    setOtpSending(true);
-    try {
-      await api.requestOtp(cleanedPhone);
-      setOtpModalOpen(true);
-    } catch (err: any) {
-      setActionError(err.message || (lang === "bn" ? "OTP পাঠাতে ব্যর্থ হয়েছে। অনুগ্রহ করে অপেক্ষা করুন।" : "Failed to send OTP. Please wait."));
-    } finally {
-      setOtpSending(false);
-    }
-  };
-
-  const executeOrderCreation = async (phoneToUse?: string) => {
-    const finalPhone = phoneToUse || cleanedPhone;
+  // Direct Order Creation - Zero OTP gate for Recharge airtime top-up
+  const executeOrderCreation = async () => {
     setSubmitting(true);
     try {
       await api.ensureGuestSession();
       const order = await api.createRechargeOrder({
         operator_code: operator as OperatorCode,
-        recharge_mobile_number: finalPhone,
+        recharge_mobile_number: cleanedPhone,
         recharge_amount_bdt: amount,
       });
       setCreatedOrder(order);
       setStep(2);
     } catch (err: any) {
-      let msg = err.message || (lang === "bn" ? "রিচার্জ অর্ডার তৈরি করতে ব্যর্থ হয়েছে" : "Failed to create Recharge order");
-      if (msg.includes(" : ")) {
-        const parts = msg.split(" : ");
-        msg = lang === "bn" ? parts[0].trim() : parts[1].trim();
-      }
-      setActionError(msg);
+      setActionError(formatApiErrorMessage(err, lang));
     } finally {
       setSubmitting(false);
     }
@@ -194,31 +215,28 @@ function RechargeWizardContent() {
     }
 
     if (!isPhoneValid) {
-      setActionError(lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Please enter a valid 11-digit Bangladesh mobile number (e.g. 01712345678)");
+      setActionError(lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১XXXXXXXXX)" : "Please enter a valid 11-digit Bangladesh mobile number (e.g. 01712345678)");
       return;
     }
 
-    // Enforce OTP verification before allowing order placement
-    if (!isPhoneVerified) {
-      await handleTriggerOtp();
+    if (isOperatorMismatch) {
+      setActionError(
+        lang === "bn"
+          ? "নির্বাচিত অপারেটর এই মোবাইল নম্বরের সাথে মিলছে না।"
+          : "The selected operator does not match this mobile number."
+      );
       return;
     }
 
     if (!isAmountValid) {
-      setActionError(lang === "bn" ? "পরিমাণ অবশ্যই ৳৫০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳50 and ৳50,000");
+      setActionError(lang === "bn" ? "পরিমাণ অবশ্যই ৳১০ থেকে ৳৫০,০০০ এর মধ্যে হতে হবে" : "Amount must be between ৳10 and ৳50,000");
       return;
     }
 
+    // Direct automated order creation
     await executeOrderCreation();
   };
 
-  const handleOtpSuccess = async (vPhone: string) => {
-    setVerifiedPhone(vPhone);
-    setOtpModalOpen(false);
-    if (operator && isAmountValid) {
-      await executeOrderCreation(vPhone);
-    }
-  };
 
   // Live Order & Automated Transfer State
   const [orderDetail, setOrderDetail] = useState<any>(null);
@@ -227,31 +245,42 @@ function RechargeWizardContent() {
   const [copiedRef, setCopiedRef] = useState(false);
   const [showManualTrx, setShowManualTrx] = useState(false);
 
-  // Poll order status & live recharge transfer progress in Step 2
+  // Poll order status & live recharge transfer progress in Step 2 with terminal stopping
   useEffect(() => {
     if (step !== 2 || !createdOrder) return;
 
     let isMounted = true;
-    const pollInterval = setInterval(async () => {
+    let pollInterval: any = null;
+
+    const poll = async () => {
       try {
         const orderData = await api.getOrder(createdOrder.order_id, createdOrder.tracking_token);
         if (isMounted && orderData) {
           setOrderDetail(orderData);
-          if (["PAYMENT_VERIFIED", "RECHARGE_PROCESSING", "COMPLETED", "WAITING_FOR_COOLDOWN"].includes(orderData.status)) {
+          if (["PAYMENT_VERIFIED", "RECHARGE_PROCESSING", "COMPLETED", "WAITING_FOR_COOLDOWN", "WAITING_FOR_SIM", "TRANSFER_FAILED", "FAILED"].includes(orderData.status)) {
             const prog = await api.getRechargeTransferProgress(createdOrder.order_id);
             if (isMounted && prog) {
               setTransferProgress(prog);
+              if (prog.is_failed || prog.is_completed || isTerminalStatus(prog.status)) {
+                if (pollInterval) clearInterval(pollInterval);
+              }
             }
+          }
+          if (isTerminalStatus(orderData.status)) {
+            if (pollInterval) clearInterval(pollInterval);
           }
         }
       } catch {
         // silent polling error
       }
-    }, 3000);
+    };
+
+    poll();
+    pollInterval = setInterval(poll, 3000);
 
     return () => {
       isMounted = false;
-      clearInterval(pollInterval);
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, [step, createdOrder]);
 
@@ -294,7 +323,7 @@ function RechargeWizardContent() {
       const tokenQuery = createdOrder.tracking_token ? `?token=${encodeURIComponent(createdOrder.tracking_token)}` : "";
       router.push(`/app/order/${createdOrder.order_id}${tokenQuery}`);
     } catch (err: any) {
-      setActionError(err.message || (lang === "bn" ? "পেমেন্ট রেকর্ড করতে ব্যর্থ হয়েছে। ট্রানজ্যাকশন রেফারেন্স যাচাই করুন।" : "Failed to record payment. Please check your transaction reference."));
+      setActionError(formatApiErrorMessage(err, lang));
     } finally {
       setSubmitting(false);
     }
@@ -302,7 +331,9 @@ function RechargeWizardContent() {
 
   const tRecharge = tr.app.rechargeWizard;
   const currentOrderStatus = orderDetail?.status || createdOrder?.status || "PAYMENT_PENDING";
-  const isPaymentVerified = ["PAYMENT_VERIFIED", "RECHARGE_PROCESSING", "COMPLETED", "WAITING_FOR_COOLDOWN"].includes(currentOrderStatus);
+  const isFailed = currentOrderStatus === "FAILED" || currentOrderStatus === "TRANSFER_FAILED" || currentOrderStatus === "RECHARGE_FAILED" || Boolean(transferProgress?.is_failed);
+  const isWaitingForSim = currentOrderStatus === "WAITING_FOR_SIM" || Boolean(transferProgress?.is_waiting_for_sim);
+  const isPaymentVerified = ["PAYMENT_VERIFIED", "RECHARGE_PROCESSING", "COMPLETED", "WAITING_FOR_COOLDOWN", "WAITING_FOR_SIM"].includes(currentOrderStatus);
   const isRechargeCompleted = currentOrderStatus === "COMPLETED" || transferProgress?.is_completed;
   const isCooldown = currentOrderStatus === "WAITING_FOR_COOLDOWN" || transferProgress?.is_cooldown;
 
@@ -344,6 +375,104 @@ function RechargeWizardContent() {
           {/* Subtle Top Step Indicator */}
           <StepIndicator currentStep={currentStep} />
 
+          {/* QUICK "MY SIM" SELECTOR (Rendered when customer has verified SIMs) */}
+          {verifiedSims.length > 0 && (
+            <div
+              style={{
+                backgroundColor: "#F8FAFC",
+                border: "1px solid #E2E8F0",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "8px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <Smartphone size={14} color="var(--ft-green)" />
+                  <span style={{ fontSize: "0.8125rem", fontWeight: "600", color: "#1E293B" }}>
+                    {lang === "bn" ? "আমার নম্বর (My SIM)" : "Quick: My SIM"}
+                  </span>
+                </div>
+                {selectedSimId && (
+                  <button
+                    type="button"
+                    onClick={handleClearSelectedSim}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--ft-green)",
+                      fontSize: "0.75rem",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    {lang === "bn" ? "+ অন্য নম্বরে রিচার্জ করুন" : "+ Recharge another number"}
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                {verifiedSims.map((sim) => {
+                  const isSelected = selectedSimId === sim.sim_id;
+                  return (
+                    <button
+                      key={sim.sim_id}
+                      type="button"
+                      onClick={() => handleSelectLinkedSim(sim)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "6px 12px",
+                        borderRadius: "8px",
+                        border: isSelected
+                          ? "2px solid var(--ft-green)"
+                          : "1px solid #CBD5E1",
+                        backgroundColor: isSelected ? "var(--ft-green-subtle)" : "#FFFFFF",
+                        color: isSelected ? "var(--ft-green-active)" : "#334155",
+                        cursor: "pointer",
+                        fontSize: "0.8125rem",
+                        fontWeight: isSelected ? "600" : "500",
+                        transition: "all 0.15s ease",
+                        textAlign: "left",
+                      }}
+                    >
+                      <span
+                        style={{
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          backgroundColor: isSelected ? "var(--ft-green)" : "#E2E8F0",
+                          color: isSelected ? "#FFFFFF" : "#475569",
+                          fontSize: "0.6875rem",
+                          fontWeight: "700",
+                        }}
+                      >
+                        {sim.operator_code}
+                      </span>
+                      <span>
+                        {lang === "bn" ? toBnDigits(sim.phone) : sim.phone}
+                      </span>
+                      {sim.label && (
+                        <span style={{ color: "#64748B", fontSize: "0.75rem", fontWeight: "400" }}>
+                          ({sim.label})
+                        </span>
+                      )}
+                      <span style={{ color: "#16A34A", fontSize: "0.75rem" }}>✓</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* STAGE 1: OPERATOR SELECTION (Always visible) */}
           <div className="form-group" style={{ marginBottom: isOperatorSelected ? "12px" : "4px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
@@ -366,35 +495,11 @@ function RechargeWizardContent() {
                 <label className="form-label" style={{ fontSize: "0.8125rem", margin: 0 }}>
                   {tRecharge.recipientNumber}
                 </label>
-                {isPhoneValid && (
-                  isPhoneVerified ? (
-                    <span style={{ fontSize: "0.75rem", color: "#16A34A", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                      <CheckCircle2 size={13} />
-                      {lang === "bn" ? "যাচাই সম্পন্ন" : "Verified"}
-                    </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleTriggerOtp}
-                      disabled={otpSending}
-                      style={{
-                        background: "var(--ft-green-subtle)",
-                        border: "1px solid #BBF7D0",
-                        color: "var(--ft-green-active)",
-                        fontSize: "0.6875rem",
-                        fontWeight: "600",
-                        padding: "2px 8px",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "4px",
-                      }}
-                    >
-                      {otpSending ? <RefreshCw size={11} className="spin" /> : <ShieldCheck size={12} />}
-                      <span>{lang === "bn" ? "OTP যাচাই করুন" : "Verify OTP"}</span>
-                    </button>
-                  )
+                {isPhoneValid && !isOperatorMismatch && (
+                  <span style={{ fontSize: "0.75rem", color: "#16A34A", fontWeight: "600", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                    <CheckCircle2 size={13} />
+                    {lang === "bn" ? "সঠিক নম্বর" : "Valid Number"}
+                  </span>
                 )}
               </div>
               <input
@@ -402,20 +507,35 @@ function RechargeWizardContent() {
                 type="tel"
                 className="form-input"
                 placeholder="01XXXXXXXXX"
+                maxLength={11}
                 value={destPhone}
                 onChange={(e) => {
-                  setDestPhone(e.target.value);
-                  const newClean = e.target.value.replace(/[\s\-\+]/g, "").replace(/^88/, "");
-                  if (verifiedPhone && verifiedPhone !== newClean) {
-                    setVerifiedPhone(null);
+                  const cleaned = e.target.value.replace(/\D/g, "").slice(0, 11);
+                  setDestPhone(cleaned);
+                  if (selectedSimId && cleaned !== destPhone) {
+                    setSelectedSimId(null);
+                  }
+                  const autoOp = detectOperatorFromPhone(cleaned);
+                  if (!operator && autoOp) {
+                    setOperator(autoOp as OperatorCode);
                   }
                 }}
                 required
-                style={{ height: "40px" }}
+                style={{ height: "40px", borderColor: isOperatorMismatch ? "#EF4444" : undefined }}
               />
-              {!isPhoneValid && destPhone.length > 0 && (
+              {isOperatorMismatch && (
+                <div style={{ fontSize: "0.75rem", color: "#DC2626", marginTop: "4px", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <AlertCircle size={13} />
+                  <span>
+                    {lang === "bn"
+                      ? `নির্বাচিত অপারেটর (${operator}) এই মোবাইল নম্বরের (${detectedOp}) সাথে মিলছে না।`
+                      : `Selected operator (${operator}) does not match this number (${detectedOp}).`}
+                  </span>
+                </div>
+              )}
+              {!isOperatorMismatch && !isPhoneValid && destPhone.length > 0 && (
                 <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", marginTop: "4px" }}>
-                  {lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১৭XXXXXXXX)" : "Enter a valid 11-digit Bangladesh mobile number (e.g. 017XXXXXXXX)"}
+                  {lang === "bn" ? "সঠিক ১১-সংখ্যার বাংলাদেশী মোবাইল নম্বর দিন (যেমন ০১XXXXXXXXX)" : "Enter a valid 11-digit Bangladesh mobile number (e.g. 01XXXXXXXXX)"}
                 </div>
               )}
             </div>
@@ -437,10 +557,10 @@ function RechargeWizardContent() {
                   ref={amountRef}
                   type="number"
                   className="form-input"
-                  min="50"
+                  min="10"
                   max="50000"
-                  step="10"
-                  placeholder={lang === "bn" ? "পরিমাণ" : "Amount"}
+                  step="1"
+                  placeholder={lang === "bn" ? "১০ - ৫০,০০০" : "10 - 50,000"}
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   required
@@ -471,7 +591,7 @@ function RechargeWizardContent() {
               <button
                 type="submit"
                 className="btn btn-primary btn-full"
-                disabled={submitting || quoteLoading || !quote}
+                disabled={submitting || quoteLoading || !quote || isOperatorMismatch}
                 style={{ height: "50px", fontSize: "0.9375rem", fontWeight: "600" }}
               >
                 {submitting ? (
@@ -530,8 +650,10 @@ function RechargeWizardContent() {
 
           {/* LIVE AUTOMATED PAYMENT & TRANSFER RADAR */}
           <div style={{
-            backgroundColor: isRechargeCompleted ? "#F0FDF4" : isPaymentVerified ? "#F0FDF4" : "#F8FAFC",
-            border: isRechargeCompleted
+            backgroundColor: isFailed ? "#FEF2F2" : isRechargeCompleted ? "#F0FDF4" : isPaymentVerified ? "#F0FDF4" : "#F8FAFC",
+            border: isFailed
+              ? "2px solid #EF4444"
+              : isRechargeCompleted
               ? "2px solid #22C55E"
               : isPaymentVerified
               ? "2px solid var(--ft-green)"
@@ -545,7 +667,9 @@ function RechargeWizardContent() {
           }}>
             <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
               <div style={{ marginTop: "2px" }}>
-                {isRechargeCompleted ? (
+                {isFailed ? (
+                  <AlertCircle size={24} color="#DC2626" />
+                ) : isRechargeCompleted ? (
                   <CheckCircle2 size={24} color="#16A34A" />
                 ) : isPaymentVerified ? (
                   <RefreshCw size={24} color="var(--ft-green)" className="spin" />
@@ -571,8 +695,15 @@ function RechargeWizardContent() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <h3 style={{ fontSize: "0.9375rem", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
-                    {isRechargeCompleted
+                  <h3 style={{
+                    fontSize: "0.9375rem",
+                    fontWeight: "700",
+                    margin: 0,
+                    color: isFailed ? "#991B1B" : "var(--text-primary)"
+                  }}>
+                    {isFailed
+                      ? (lang === "bn" ? "রিচার্জ সম্পন্ন করা যায়নি" : "Recharge Failed")
+                      : isRechargeCompleted
                       ? (lang === "bn" ? "রিচার্জ সম্পন্ন হয়েছে!" : "Recharge Completed Successfully!")
                       : isPaymentVerified
                       ? (lang === "bn" ? "পেমেন্ট যাচাইকৃত! স্বয়ংক্রিয় রিচার্জ চলছে..." : "Payment Verified! Transferring Airtime...")
@@ -583,17 +714,26 @@ function RechargeWizardContent() {
                     fontWeight: "600",
                     padding: "2px 8px",
                     borderRadius: "4px",
-                    backgroundColor: isRechargeCompleted ? "#DCFCE7" : isPaymentVerified ? "#DCFCE7" : "#E0F2FE",
-                    color: isRechargeCompleted ? "#166534" : isPaymentVerified ? "#166534" : "#0369A1"
+                    backgroundColor: isFailed ? "#FEE2E2" : isRechargeCompleted ? "#DCFCE7" : isPaymentVerified ? "#DCFCE7" : "#E0F2FE",
+                    color: isFailed ? "#991B1B" : isRechargeCompleted ? "#166534" : isPaymentVerified ? "#166534" : "#0369A1"
                   }}>
-                    {currentOrderStatus}
+                    {isFailed ? (transferProgress?.error_code || "FAILED") : currentOrderStatus}
                   </span>
                 </div>
-                <p style={{ margin: "4px 0 0 0", fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
-                  {isRechargeCompleted
+                <p style={{
+                  margin: "4px 0 0 0",
+                  fontSize: "0.8125rem",
+                  color: isFailed ? "#991B1B" : "var(--text-secondary)",
+                  lineHeight: 1.45
+                }}>
+                  {isFailed
+                    ? (transferProgress?.error_message || (lang === "bn" ? "লেনদেন সম্পন্ন করা যায়নি।" : "Transaction could not be completed."))
+                    : isRechargeCompleted
                     ? (lang === "bn" ? "আপনার প্রদত্ত নম্বরে সফলভাবে এয়ারটাইম রিচার্জ প্রদান করা হয়েছে।" : "Airtime top-up has been successfully credited to your number.")
+                    : isWaitingForSim
+                    ? (lang === "bn" ? "একটি সক্রিয় রিচার্জ লাইনের জন্য অপেক্ষা করা হচ্ছে। লাইন প্রস্তুত হওয়া মাত্রই স্বয়ংক্রিয়ভাবে রিচার্জ সম্পন্ন হবে।" : "Waiting for an available recharge line. Your airtime transfer will proceed automatically as soon as an eligible line is free.")
                     : isPaymentVerified
-                    ? (lang === "bn" ? "iPhone Shortcut দ্বারা পেমেন্ট SMS নিশ্চিত হয়েছে। আমাদের সার্ভার স্বয়ংক্রিয়ভাবে টেলকো সিম থেকে রিচার্জ পাঠাচ্ছে।" : "Payment SMS verified via iPhone Shortcut. Server is transferring airtime chunks via operator SIM.")
+                    ? (lang === "bn" ? "পেমেন্ট SMS নিশ্চিত হয়েছে। আমাদের সার্ভার স্বয়ংক্রিয়ভাবে এয়ারটাইম পাঠাচ্ছে।" : "Payment SMS verified. Server is transferring airtime via operator network.")
                     : (lang === "bn"
                         ? "আপনার বিকাশ বা নগদ থেকে নিচে দেওয়া নম্বরে পেমেন্ট করুন। রেফারেন্সে অর্ডার আইডি দিন। SMS আসার সাথে সাথে স্বয়ংক্রিয়ভাবে রিচার্জ সক্রিয় হবে।"
                         : "Send payment to the number below using bKash/Nagad with Order ID as reference. Top-up will trigger automatically upon SMS receipt.")}
@@ -653,90 +793,110 @@ function RechargeWizardContent() {
               marginBottom: "16px"
             }}>
               {/* Payment Number Card */}
-              <div style={{ textAlign: "center", marginBottom: "14px" }}>
-                <div style={{ fontSize: "0.75rem", fontWeight: "500", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "4px" }}>
-                  {lang === "bn"
-                    ? `FlexiTaka-কে ${formatBDT(createdOrder.customer_pay_amount_bdt, { preserveDecimals: true, lang })} পাঠান`
-                    : `Send ${formatBDT(createdOrder.customer_pay_amount_bdt, { preserveDecimals: true })} To FlexiTaka`}
-                </div>
-                <div style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  backgroundColor: "#FFFFFF",
-                  padding: "6px 14px",
-                  borderRadius: "var(--radius-sm)",
-                  border: "1px solid var(--border-light)"
-                }}>
-                  <span style={{ fontSize: "1.375rem", fontWeight: "700", color: "var(--text-primary)", letterSpacing: "0.04em" }}>
-                    {lang === "bn" ? toBnDigits("01711-000002") : "01711-000002"}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleCopy("01711000002", "num")}
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      color: copiedNum ? "var(--ft-green)" : "var(--text-secondary)",
-                      cursor: "pointer",
-                      display: "flex",
+              {(() => {
+                const selectedAccount = paymentAccounts.find((a) => a.method === paymentMethod) ||
+                  (paymentAccounts.length > 0 ? paymentAccounts[0] : null);
+                const currentPaymentNumber = selectedAccount?.display_number || createdOrder?.payment_display_number || "01711-000002";
+                const rawPaymentNumber = selectedAccount?.account_number || createdOrder?.payment_account_number || "01711000002";
+                const currentInstructions = (lang === "bn" ? selectedAccount?.instructions_bn : selectedAccount?.instructions) ||
+                  (lang === "bn"
+                    ? "পেমেন্ট অ্যাপে Send Money করার সময় Reference অপশনে উপরের কোডটি দিলে তাৎক্ষণিক রিচার্জ নিশ্চিত হয়।"
+                    : "Include this order ID in the 'Reference' field of bKash/Nagad for instant automatic detection.");
+
+                return (
+                  <div style={{ textAlign: "center", marginBottom: "14px" }}>
+                    <div style={{ fontSize: "0.75rem", fontWeight: "500", color: "var(--text-muted)", textTransform: "uppercase", marginBottom: "4px" }}>
+                      {lang === "bn"
+                        ? `FlexiTaka-কে ${formatBDT(createdOrder.customer_pay_amount_bdt, { preserveDecimals: true, lang })} পাঠান`
+                        : `Send ${formatBDT(createdOrder.customer_pay_amount_bdt, { preserveDecimals: true })} To FlexiTaka`}
+                    </div>
+
+                    {paymentMethod === "BANGLA_QR" && selectedAccount?.qr_code_url && (
+                      <div style={{ margin: "10px auto", display: "inline-block", background: "#FFFFFF", padding: "10px", borderRadius: "8px", border: "1px solid var(--border-light)" }}>
+                        <img src={selectedAccount.qr_code_url} alt="Bangla QR" style={{ width: "120px", height: "120px", objectFit: "contain", display: "block" }} />
+                      </div>
+                    )}
+
+                    <div style={{
+                      display: "inline-flex",
                       alignItems: "center",
-                      gap: "4px",
-                      fontSize: "0.75rem",
-                      fontWeight: "600"
-                    }}
-                  >
-                    {copiedNum ? <Check size={14} /> : <Copy size={14} />}
-                    <span>{copiedNum ? (lang === "bn" ? "কপি হয়েছে" : "Copied") : (lang === "bn" ? "কপি" : "Copy")}</span>
-                  </button>
-                </div>
-              </div>
+                      gap: "8px",
+                      backgroundColor: "#FFFFFF",
+                      padding: "6px 14px",
+                      borderRadius: "var(--radius-sm)",
+                      border: "1px solid var(--border-light)"
+                    }}>
+                      <span style={{ fontSize: "1.375rem", fontWeight: "700", color: "var(--text-primary)", letterSpacing: "0.04em" }}>
+                        {lang === "bn" ? toBnDigits(currentPaymentNumber) : currentPaymentNumber}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(rawPaymentNumber, "num")}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          color: copiedNum ? "var(--ft-green)" : "var(--text-secondary)",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          fontSize: "0.75rem",
+                          fontWeight: "600"
+                        }}
+                      >
+                        {copiedNum ? <Check size={14} /> : <Copy size={14} />}
+                        <span>{copiedNum ? (lang === "bn" ? "কপি হয়েছে" : "Copied") : (lang === "bn" ? "কপি" : "Copy")}</span>
+                      </button>
+                    </div>
 
-              {/* Crucial Reference Code Card */}
-              <div style={{
-                backgroundColor: "#FEF9C3",
-                border: "1px dashed #CA8A04",
-                borderRadius: "var(--radius-sm)",
-                padding: "10px 14px",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}>
-                <div>
-                  <div style={{ fontSize: "0.6875rem", fontWeight: "600", color: "#854D0E", textTransform: "uppercase" }}>
-                    {lang === "bn" ? "পেমেন্ট রেফারেন্স কোড (জরুরি)" : "Payment Reference Code (Crucial)"}
-                  </div>
-                  <div style={{ fontSize: "1rem", fontWeight: "700", color: "#713F12", letterSpacing: "0.05em" }}>
-                    {createdOrder.order_id}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleCopy(createdOrder.order_id, "ref")}
-                  style={{
-                    backgroundColor: copiedRef ? "#BBF7D0" : "#FFFFFF",
-                    border: "1px solid #CA8A04",
-                    borderRadius: "4px",
-                    padding: "4px 10px",
-                    fontSize: "0.75rem",
-                    fontWeight: "600",
-                    color: copiedRef ? "#166534" : "#854D0E",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px"
-                  }}
-                >
-                  {copiedRef ? <Check size={13} /> : <Copy size={13} />}
-                  <span>{copiedRef ? (lang === "bn" ? "কপি হয়েছে" : "Copied") : (lang === "bn" ? "রেফারেন্স কপি" : "Copy Ref")}</span>
-                </button>
-              </div>
+                    {/* Crucial Reference Code Card */}
+                    <div style={{
+                      backgroundColor: "#FEF9C3",
+                      border: "1px dashed #CA8A04",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "10px 14px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: "12px",
+                      textAlign: "left"
+                    }}>
+                      <div>
+                        <div style={{ fontSize: "0.6875rem", fontWeight: "600", color: "#854D0E", textTransform: "uppercase" }}>
+                          {lang === "bn" ? "পেমেন্ট রেফারেন্স কোড (জরুরি)" : "Payment Reference Code (Crucial)"}
+                        </div>
+                        <div style={{ fontSize: "1rem", fontWeight: "700", color: "#713F12", letterSpacing: "0.05em" }}>
+                          {createdOrder.order_id}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(createdOrder.order_id, "ref")}
+                        style={{
+                          backgroundColor: copiedRef ? "#BBF7D0" : "#FFFFFF",
+                          border: "1px solid #CA8A04",
+                          borderRadius: "4px",
+                          padding: "4px 10px",
+                          fontSize: "0.75rem",
+                          fontWeight: "600",
+                          color: copiedRef ? "#166534" : "#854D0E",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                      >
+                        {copiedRef ? <Check size={13} /> : <Copy size={13} />}
+                        <span>{copiedRef ? (lang === "bn" ? "কপি হয়েছে" : "Copied") : (lang === "bn" ? "রেফারেন্স কপি" : "Copy Ref")}</span>
+                      </button>
+                    </div>
 
-              <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "8px", textAlign: "center" }}>
-                {lang === "bn"
-                  ? "পেমেন্ট অ্যাপে Send Money করার সময় Reference অপশনে উপরের কোডটি দিলে তাৎক্ষণিক রিচার্জ নিশ্চিত হয়।"
-                  : "Include this order ID in the 'Reference' field of bKash/Nagad for instant automatic detection."}
-              </div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "8px", textAlign: "center" }}>
+                      {currentInstructions}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -789,8 +949,9 @@ function RechargeWizardContent() {
                         type="tel"
                         className="form-input"
                         placeholder="01XXXXXXXXX"
+                        maxLength={11}
                         value={payerAccount}
-                        onChange={(e) => setPayerAccount(e.target.value)}
+                        onChange={(e) => setPayerAccount(e.target.value.replace(/\D/g, "").slice(0, 11))}
                         style={{ height: "38px" }}
                       />
                     </div>
@@ -843,20 +1004,13 @@ function RechargeWizardContent() {
             </>
           )}
 
-          <TrustNote />
+          <TrustNote text={lang === "bn" ? "রিচার্জের পেমেন্ট আপনার পেমেন্ট SMS থেকে স্বয়ংক্রিয়ভাবে যাচাই করা হয়।" : "Recharge payment is verified automatically from your payment SMS."} />
         </div>
       )}
-
-      {/* OTP Verification Modal */}
-      <OtpVerificationModal
-        isOpen={otpModalOpen}
-        phone={cleanedPhone}
-        onSuccess={handleOtpSuccess}
-        onClose={() => setOtpModalOpen(false)}
-      />
     </div>
   );
 }
+
 
 export default function RechargeWizardPage() {
   return (

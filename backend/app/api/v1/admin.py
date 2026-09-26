@@ -29,8 +29,9 @@ from app.modules.orders.schemas import OrderDetailResponse
 from app.modules.orders.service import OrdersService
 from app.modules.payouts.schemas import MarkPayoutSentRequest, PayoutResponse
 from app.modules.payouts.service import PayoutsService
+from app.core.constants import SimStatus
 from app.modules.receiving_sims.schemas import (
-    CreateReceivingSimRequest, ReceivingSimResponse
+    CreateReceivingSimRequest, ReceivingSimResponse, UpdateReceivingSimRequest
 )
 from app.modules.receiving_sims.service import ReceivingSimsService
 
@@ -198,8 +199,165 @@ async def create_admin_sim(
         label=payload.label,
         daily_limit_bdt=payload.daily_limit_bdt,
         monthly_limit_bdt=payload.monthly_limit_bdt,
+        initial_balance_bdt=payload.initial_balance_bdt,
         notes=payload.notes
     )
+
+
+@router.get("/sims/{sim_id}", response_model=ReceivingSimResponse)
+async def get_admin_sim(
+    sim_id: str,
+    staff: Dict[str, Any] = Depends(require_permission("sims:view")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    return await service.get_sim(sim_id)
+
+
+@router.patch("/sims/{sim_id}", response_model=ReceivingSimResponse)
+async def update_admin_sim(
+    sim_id: str,
+    payload: UpdateReceivingSimRequest,
+    staff: Dict[str, Any] = Depends(require_permission("sims:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    audit = AuditRepository(db)
+    updated = await service.update_sim(sim_id, payload.dict(exclude_unset=True))
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="UPDATE_RECEIVING_SIM",
+        resource_type="RECEIVING_SIM",
+        resource_id=sim_id,
+        after=updated,
+        reason=f"Updated SIM {sim_id}"
+    )
+    return updated
+
+
+@router.post("/sims/{sim_id}/activate", response_model=ReceivingSimResponse)
+async def activate_admin_sim(
+    sim_id: str,
+    staff: Dict[str, Any] = Depends(require_permission("sims:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    audit = AuditRepository(db)
+    res = await service.set_status(sim_id, SimStatus.ACTIVE)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="ACTIVATE_SIM",
+        resource_type="RECEIVING_SIM",
+        resource_id=sim_id,
+        after={"status": SimStatus.ACTIVE},
+        reason=f"Activated SIM {sim_id}"
+    )
+    return res
+
+
+@router.post("/sims/{sim_id}/deactivate", response_model=ReceivingSimResponse)
+async def deactivate_admin_sim(
+    sim_id: str,
+    staff: Dict[str, Any] = Depends(require_permission("sims:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    audit = AuditRepository(db)
+    res = await service.set_status(sim_id, SimStatus.INACTIVE)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="DEACTIVATE_SIM",
+        resource_type="RECEIVING_SIM",
+        resource_id=sim_id,
+        after={"status": SimStatus.INACTIVE},
+        reason=f"Deactivated SIM {sim_id}"
+    )
+    return res
+
+
+@router.post("/sims/{sim_id}/block", response_model=ReceivingSimResponse)
+async def block_admin_sim(
+    sim_id: str,
+    request: Request,
+    staff: Dict[str, Any] = Depends(require_permission("sims:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    body = await request.json() if request.headers.get("content-type") == "application/json" else {}
+    reason = body.get("reason", "Administrative block")
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    audit = AuditRepository(db)
+    res = await service.set_status(sim_id, SimStatus.BLOCKED, reason=reason)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="BLOCK_SIM",
+        resource_type="RECEIVING_SIM",
+        resource_id=sim_id,
+        after={"status": SimStatus.BLOCKED, "reason": reason},
+        reason=reason
+    )
+    return res
+
+
+@router.post("/sims/{sim_id}/unblock", response_model=ReceivingSimResponse)
+async def unblock_admin_sim(
+    sim_id: str,
+    staff: Dict[str, Any] = Depends(require_permission("sims:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    audit = AuditRepository(db)
+    res = await service.set_status(sim_id, SimStatus.ACTIVE)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="UNBLOCK_SIM",
+        resource_type="RECEIVING_SIM",
+        resource_id=sim_id,
+        after={"status": SimStatus.ACTIVE},
+        reason=f"Unblocked SIM {sim_id}"
+    )
+    return res
+
+
+@router.get("/sims/{sim_id}/history")
+async def get_admin_sim_history(
+    sim_id: str,
+    direction: Optional[str] = None,
+    limit: int = Query(default=50, ge=1, le=100),
+    staff: Dict[str, Any] = Depends(require_permission("sims:view")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    records = await service.get_transfer_history(sim_id, direction=direction, limit=limit)
+    return {"total": len(records), "history": records}
+
+
+@router.post("/sims/{sim_id}/reconcile")
+async def reconcile_admin_sim(
+    sim_id: str,
+    request: Request,
+    staff: Dict[str, Any] = Depends(require_permission("sims:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    body = await request.json()
+    operator_bal = float(body.get("operator_balance_bdt", 0.0))
+    service = ReceivingSimsService(ReceivingSimsRepository(db))
+    audit = AuditRepository(db)
+    result = await service.reconcile(sim_id, operator_bal)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="RECONCILE_SIM_BALANCE",
+        resource_type="RECEIVING_SIM",
+        resource_id=sim_id,
+        after=result,
+        reason=f"Balance reconciliation audit performed: mismatch={result.get('mismatch')}"
+    )
+    return result
 
 
 # --- Inventory ---
@@ -291,3 +449,232 @@ async def list_audit_logs(
     query = {"resource_id": resource_id} if resource_id else {}
     logs = await audit_repo.find_many(query, sort_by=[("created_at", -1)], limit=limit)
     return {"total": len(logs), "logs": logs}
+
+
+# --- Operator Prefix Management ---
+@router.get("/operator-prefixes")
+async def list_operator_prefixes(
+    staff: Dict[str, Any] = Depends(require_permission("orders:view")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.operator_prefix_repo import OperatorPrefixRepository
+    repo = OperatorPrefixRepository(db)
+    prefixes = await repo.list_all_prefixes()
+    return {"total": len(prefixes), "prefixes": prefixes}
+
+
+@router.post("/operator-prefixes")
+async def add_operator_prefix(
+    request: Request,
+    staff: Dict[str, Any] = Depends(require_permission("pricing:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.operator_prefix_repo import OperatorPrefixRepository
+    from app.modules.operators.resolver import refresh_prefix_cache
+    body = await request.json()
+    repo = OperatorPrefixRepository(db)
+    audit = AuditRepository(db)
+    active_val = body.get("active") if "active" in body else body.get("is_active", True)
+    result = await repo.add_prefix(
+        prefix=body.get("prefix"),
+        operator_code=body.get("operator_code"),
+        active=active_val,
+        notes=body.get("notes", ""),
+        created_by=staff.get("sub", "ADMIN")
+    )
+    await refresh_prefix_cache(db)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="ADD_OPERATOR_PREFIX",
+        resource_type="OPERATOR_PREFIX",
+        resource_id=body.get("prefix"),
+        after=result,
+        reason=f"Added prefix {body.get('prefix')} -> {body.get('operator_code')}"
+    )
+    return result
+
+
+@router.put("/operator-prefixes/{prefix}")
+async def update_operator_prefix(
+    prefix: str,
+    request: Request,
+    staff: Dict[str, Any] = Depends(require_permission("pricing:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.operator_prefix_repo import OperatorPrefixRepository
+    from app.modules.operators.resolver import refresh_prefix_cache
+    body = await request.json()
+    repo = OperatorPrefixRepository(db)
+    audit = AuditRepository(db)
+    active_val = body.get("active") if "active" in body else body.get("is_active")
+    result = await repo.update_prefix(
+        prefix=prefix,
+        operator_code=body.get("operator_code"),
+        active=active_val,
+        notes=body.get("notes"),
+        updated_by=staff.get("sub", "ADMIN")
+    )
+    await refresh_prefix_cache(db)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="UPDATE_OPERATOR_PREFIX",
+        resource_type="OPERATOR_PREFIX",
+        resource_id=prefix,
+        after=result,
+        reason=f"Updated prefix {prefix}"
+    )
+    return result
+
+
+@router.get("/payment-accounts")
+async def list_admin_payment_accounts(
+    staff: Dict[str, Any] = Depends(require_permission("orders:view")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.payment_accounts_repo import PaymentAccountsRepository
+    repo = PaymentAccountsRepository(db)
+    await repo.ensure_defaults()
+    return await repo.find_many({}, sort_by=[("method", 1)], limit=50)
+
+
+@router.put("/payment-accounts/{account_id}")
+async def update_admin_payment_account(
+    account_id: str,
+    request: Request,
+    staff: Dict[str, Any] = Depends(require_permission("pricing:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.payment_accounts_repo import PaymentAccountsRepository
+    body = await request.json()
+    repo = PaymentAccountsRepository(db)
+    audit = AuditRepository(db)
+    existing = await repo.get_by_account_id(account_id)
+    if not existing:
+        raise NotFoundException(f"Payment account {account_id} not found")
+
+    allowed_fields = [
+        "account_name", "account_number", "display_number",
+        "account_type", "is_active", "qr_code_url",
+        "instructions", "instructions_bn"
+    ]
+    updates = {k: v for k, v in body.items() if k in allowed_fields}
+    await repo.update_account(account_id, updates)
+    updated = await repo.get_by_account_id(account_id)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="UPDATE_PAYMENT_ACCOUNT",
+        resource_type="PAYMENT_ACCOUNT",
+        resource_id=account_id,
+        before=existing,
+        after=updated,
+        reason=f"Updated payment account {account_id}"
+    )
+    return updated
+
+
+@router.post("/payment-accounts")
+async def create_admin_payment_account(
+    request: Request,
+    staff: Dict[str, Any] = Depends(require_permission("pricing:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.payment_accounts_repo import PaymentAccountsRepository
+    body = await request.json()
+    repo = PaymentAccountsRepository(db)
+    audit = AuditRepository(db)
+    created = await repo.create_account(body)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="CREATE_PAYMENT_ACCOUNT",
+        resource_type="PAYMENT_ACCOUNT",
+        resource_id=body.get("account_id", "new"),
+        after=created,
+        reason=f"Created payment account {body.get('account_name')}"
+    )
+    return created
+
+
+@router.post("/payment-accounts/{account_id}/toggle-status")
+async def toggle_admin_payment_account_status(
+    account_id: str,
+    staff: Dict[str, Any] = Depends(require_permission("pricing:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.payment_accounts_repo import PaymentAccountsRepository
+    repo = PaymentAccountsRepository(db)
+    audit = AuditRepository(db)
+    existing = await repo.get_by_account_id(account_id)
+    if not existing:
+        raise NotFoundException(f"Payment account {account_id} not found")
+
+    new_status = not existing.get("is_active", True)
+    await repo.update_account(account_id, {"is_active": new_status})
+    updated = await repo.get_by_account_id(account_id)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="TOGGLE_PAYMENT_ACCOUNT_STATUS",
+        resource_type="PAYMENT_ACCOUNT",
+        resource_id=account_id,
+        before=existing,
+        after=updated,
+        reason=f"Toggled active status of payment account {account_id} to {new_status}"
+    )
+    return updated
+
+
+# --- Operator Limit Configurations ---
+@router.get("/operator-configs")
+async def list_admin_operator_configs(
+    staff: Dict[str, Any] = Depends(require_permission("pricing:view")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.operator_config_repo import OperatorConfigRepository
+    repo = OperatorConfigRepository(db)
+    configs = await repo.list_configs()
+    for c in configs:
+        c.pop("_id", None)
+    return {"total": len(configs), "configs": configs}
+
+
+@router.get("/operator-configs/{operator_code}")
+async def get_admin_operator_config(
+    operator_code: str,
+    staff: Dict[str, Any] = Depends(require_permission("pricing:view")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.operator_config_repo import OperatorConfigRepository
+    repo = OperatorConfigRepository(db)
+    cfg = await repo.get_config(operator_code)
+    cfg.pop("_id", None)
+    return cfg
+
+
+@router.put("/operator-configs/{operator_code}")
+async def update_admin_operator_config(
+    operator_code: str,
+    request: Request,
+    staff: Dict[str, Any] = Depends(require_permission("pricing:manage")),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    from app.db.repositories.operator_config_repo import OperatorConfigRepository
+    body = await request.json()
+    repo = OperatorConfigRepository(db)
+    audit = AuditRepository(db)
+    updated = await repo.update_config(operator_code, body, updated_by=staff.get("sub", "ADMIN"))
+    updated.pop("_id", None)
+    await audit.log_action(
+        actor_type="STAFF",
+        actor_id=staff.get("sub", "ADMIN"),
+        action="UPDATE_OPERATOR_CONFIG",
+        resource_type="OPERATOR_CONFIG",
+        resource_id=operator_code.upper(),
+        after=updated,
+        reason=f"Updated limits and config for operator {operator_code.upper()}"
+    )
+    return updated
+

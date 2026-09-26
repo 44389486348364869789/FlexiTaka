@@ -17,10 +17,12 @@ from app.api.v1.pricing import router as pricing_router
 from app.api.v1.proofs import router as proofs_router
 from app.api.v1.recharge import router as recharge_router
 from app.api.v1.support import router as support_router
+from app.api.v1.user import router as user_router
 
 api_v1_router = APIRouter()
 
 api_v1_router.include_router(auth_router)
+api_v1_router.include_router(user_router)
 api_v1_router.include_router(guests_router)
 api_v1_router.include_router(operators_router)
 api_v1_router.include_router(pricing_router)

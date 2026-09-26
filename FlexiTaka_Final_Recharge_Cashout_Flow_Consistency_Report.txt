@@ -1,0 +1,234 @@
+================================================================================
+FLEXITAKA — FINAL RECHARGE/CASHOUT FLOW & WEBSITE CONSISTENCY FIX REPORT
+================================================================================
+Generated: 2026-09-25
+Repository: /root/flexitaka
+Status: COMPLETE & VERIFIED
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+This report documents the final resolution of the Recharge transaction flow bug,
+elimination of unnecessary OTP gates on Recharge, preservation of operator OTP
+for Cash Out, implementation of database-driven payment accounts, policy/copy
+consistency fixes, and end-to-end regression validation.
+
+All changes adhere strictly to the FlexiTaka Clean Architecture:
+- Recipient number -> detect operator -> amount -> create recharge order
+  -> show authoritative DB payment account (bKash/Nagad/Rocket/Bangla QR) + unique Order ID
+  -> customer pays via MFS/banking app
+  -> payment SMS arrives on FlexiTaka iPhone
+  -> iPhone Shortcut POSTs SMS to https://flexitaka.online/api/gateway/verify-payment-ios-shortcut-method
+  -> backend authenticates request & deduplicates TrxID
+  -> exact order/amount match -> PAYMENT_VERIFIED -> automatic same-operator transfer engine.
+
+--------------------------------------------------------------------------------
+2. CRITICAL RECHARGE OTP BUG FIX (ROOT CAUSE RESOLUTION)
+--------------------------------------------------------------------------------
+Issue:
+The Recharge wizard page (/app/recharge) erroneously imported and triggered an
+OTP verification modal using ZendSMS (api.requestOtp / /auth/request-otp),
+blocking recharge order placement until the customer verified their phone.
+This was incorrect because airtime recharge is an airtime top-up sent to any
+recipient number—the customer does NOT need to verify ownership of the recipient SIM.
+
+Root Causes Fixed:
+1. Removed `import OtpVerificationModal from "@/components/OtpVerificationModal";`
+2. Removed OTP component states: `verifiedPhone`, `otpModalOpen`, `otpSending`, `isPhoneVerified`.
+3. Removed `handleTriggerOtp` and `handleOtpSuccess`.
+4. Removed the OTP gate in `handleCreateOrder`:
+   - OLD: `if (!isPhoneVerified) { await handleTriggerOtp(); return; }`
+   - NEW: Entering operator, valid phone, and amount directly invokes `executeOrderCreation()`.
+5. Removed the "OTP যাচাই করুন" / "Verify OTP" button and ShieldCheck icon from the recipient phone input field.
+   - Replaced with a clean valid number indicator (`CheckCircle2` + "সঠিক নম্বর" / "Valid Number").
+6. Removed `<OtpVerificationModal ... />` from the recharge page render tree.
+7. Removed `REQUIRE_ORDER_OTP` check from `backend/app/modules/recharge/service.py`.
+   - Recharge order creation never blocks on recipient phone verification.
+8. Retained ZendSMS globally: ZendSMS remains active and intact for authentic user
+   profile/auth login flows (/auth/request-otp and /auth/verify-otp).
+
+--------------------------------------------------------------------------------
+3. CASH OUT OTP PRESERVATION & ISOLATION
+--------------------------------------------------------------------------------
+- Cash Out (/app/cashout) remains completely distinct:
+  * Customer's own SIM -> operator detection -> operator verification OTP
+    where required -> operator API authentication -> live balance -> Cash Out transfer.
+- Kept `api.requestOperatorOtp` and `api.verifyOperatorOtp` active for Cash Out.
+- Zero mixing between Cash Out operator OTP and Recharge flows.
+
+--------------------------------------------------------------------------------
+4. AUTHORITATIVE DATABASE-DRIVEN PAYMENT ACCOUNTS (REQUIREMENT 7)
+--------------------------------------------------------------------------------
+Issue:
+The Recharge payment number shown in Step 2 was previously hardcoded as
+"01711-000002" in recharge/page.tsx.
+
+Solution Implemented:
+1. Created `backend/app/db/repositories/payment_accounts_repo.py`:
+   - Manages the `payment_accounts` collection in MongoDB.
+   - Automatically seeds authoritative default accounts if empty:
+     * BKASH: 01981475404 (Personal, instructions: Send Money with Order ID in Ref)
+     * NAGAD: 01981475404 (Personal, instructions: Send Money with Order ID in Ref)
+     * ROCKET: 01981475404 (Personal, instructions: Send Money with Order ID in Ref)
+     * BANGLA_QR: 01981475404 (Merchant, QR: /logos/bangla-qr.svg)
+2. Registered indexes in `backend/app/db/indexes.py`:
+   - Unique on `account_id`
+   - Compound on `method`, `is_active`
+3. Added API Endpoints:
+   - `GET /api/v1/payments/accounts` (Public): Returns list of active accounts.
+   - `GET /api/v1/admin/payment-accounts` (Admin): List all accounts with status.
+   - `PUT /api/v1/admin/payment-accounts/{account_id}` (Admin): Update account details,
+     active status, numbers, or QR code with audit logging.
+4. Updated Recharge Order Response (`RechargeOrderResponse`):
+   - Includes `payment_account_number` and `payment_display_number` from the database.
+5. Updated Frontend (`api.ts`, `types.ts`, and `recharge/page.tsx`):
+   - Added `PaymentAccount` interface and `api.getPaymentAccounts()`.
+   - `recharge/page.tsx` dynamically loads payment accounts from the database.
+   - When customer selects bKash, Nagad, Rocket, or Bangla QR, the payment number,
+     instructions, and QR code update dynamically from the DB.
+   - Completely eliminated hardcoded numbers.
+
+--------------------------------------------------------------------------------
+5. CASH OUT RECEIVING NUMBER DATABASE INVENTORY (REQUIREMENT 8)
+--------------------------------------------------------------------------------
+- Verified `backend/app/modules/cashout/service.py` calls
+  `self.sims_repo.select_best_sim(operator_code, quote["source_amount_poisha"])`.
+- Selection enforces:
+  * Strict MSISDN prefix match with customer's operator (017/013 -> GP, 018/016 -> ROBI, 019/014 -> BANGLALINK)
+  * Active status and cooldown check (`cooldown_until <= now`)
+  * Daily limit capacity check (`current_daily_usage + amount <= daily_limit`)
+  * Automatic blocking and security alert if any prefix mismatch is detected
+- Frontend `cashout/page.tsx` renders `createdOrder.receiving_mobile_number` directly from DB.
+
+--------------------------------------------------------------------------------
+6. OPERATOR MISMATCH & NUMBER VALIDATION (REQUIREMENTS 4 & 5)
+--------------------------------------------------------------------------------
+- Frontend:
+  * Auto-detects operator from 11-digit number.
+  * Checks `isOperatorMismatch = (operator && detectedOp && operator !== detectedOp)`.
+  * If mismatch exists: displays red warning, disables submit button, blocks form submission.
+- Backend:
+  * `validate_operator_match` in `backend/app/modules/operators/resolver.py` strictly checks
+    operator prefix.
+  * Rejects mismatch with HTTP 422 `OPERATOR_NUMBER_MISMATCH`.
+  * Rejects numbers != 11 digits with HTTP 422 `INVALID_MOBILE_NUMBER`.
+
+--------------------------------------------------------------------------------
+7. AMOUNT LIMITS (REQUIREMENT 6)
+--------------------------------------------------------------------------------
+- Minimum = ৳5, Maximum = ৳50,000.
+- Frontend: input enforces `min="5" max="50000"`, `isAmountValid = numAmount >= 5 && numAmount <= 50000`.
+- Backend: `PricingService.calculate_recharge_quote` and `calculate_cashout_quote`
+  enforce `min_amount` and `max_amount` rules.
+  * Amount 4 -> rejected with HTTP 422 `AMOUNT_OUT_OF_RANGE`.
+  * Amount 5 -> accepted.
+  * Amount 50,000 -> accepted.
+  * Amount 50,001 -> rejected with HTTP 422 `AMOUNT_OUT_OF_RANGE`.
+
+--------------------------------------------------------------------------------
+8. SECURITY COPY & FOOTER/POLICY AUDIT (REQUIREMENTS 3 & 9)
+--------------------------------------------------------------------------------
+1. Centralized security translations (`common.ts`):
+   - `rechargeNotice`: "Recharge payment is verified automatically from your payment SMS."
+     (BN: "রিচার্জের পেমেন্ট আপনার পেমেন্ট SMS থেকে স্বয়ংক্রিয়ভাবে যাচাই করা হয়।")
+   - `cashoutNotice`: "An operator verification OTP may be requested when needed to authenticate your SIM."
+     (BN: "আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে operator verification OTP চাওয়া হতে পারে।")
+   - `simPinPasswordWarning`: "We will never ask for your SIM PIN or account password."
+     (BN: "আমরা কখনো আপনার SIM PIN বা account password চাইব না।")
+2. Recharge TrustNote updated:
+   `TrustNote text={lang === "bn" ? "রিচার্জের পেমেন্ট আপনার পেমেন্ট SMS থেকে স্বয়ংক্রিয়ভাবে যাচাই করা হয়।" : "Recharge payment is verified automatically from your payment SMS."}`
+3. How-It-Works Page updated:
+   - Updated Step 2 and Step 3 to reflect automated SMS verification via iPhone Shortcut
+     and automatic transfer engine dispatch.
+   - Included bKash, Nagad, Rocket, and Bangla QR.
+4. Policy & About Pages:
+   - Verified terms, privacy, and about pages contain zero contradictory OTP statements
+     and zero unsupported partnership/agency claims.
+
+--------------------------------------------------------------------------------
+9. IPHONE SHORTCUT SMS GATEWAY (PAYMENT VERIFICATION ENGINE)
+--------------------------------------------------------------------------------
+- Public URL: https://flexitaka.online/api/gateway/verify-payment-ios-shortcut-method
+- Target: Apple iOS Shortcuts on FlexiTaka iPhone.
+- Flow:
+  1. Authenticates request using `X-Gateway-Secret` (`SHORTCUT_GATEWAY_SECRET`).
+  2. Parses bKash / Nagad payment SMS (provider, transaction_id, amount_poisha, reference_code, sender_number).
+  3. Replay Protection & Deduplication: checks `sms_transactions` collection.
+     If TrxID was already processed, immediately rejects with `DUPLICATE_TRANSACTION`.
+  4. Order Matching: matches pending recharge order by `order_id` in reference code and exact amount.
+  5. Transitions order to `PAYMENT_VERIFIED` / `RECHARGE_PROCESSING`.
+  6. Dispatches airtime transfer chunk via `TransferEngine` through operator retail SIM pool.
+
+--------------------------------------------------------------------------------
+10. FILES CHANGED
+--------------------------------------------------------------------------------
+Backend:
+- `backend/app/db/repositories/payment_accounts_repo.py` (NEW): Authoritative DB payment accounts repo.
+- `backend/app/db/repositories/__init__.py`: Exported PaymentAccountsRepository.
+- `backend/app/db/indexes.py`: Added indexes for payment_accounts collection.
+- `backend/app/api/v1/payments.py`: Added `GET /api/v1/payments/accounts` endpoint.
+- `backend/app/api/v1/admin.py`: Added admin payment account list & update endpoints.
+- `backend/app/api/v1/gateway.py`: Robust body and content-type parsing for iPhone Shortcut webhook.
+- `backend/app/modules/recharge/schemas.py`: Added payment account fields to RechargeOrderResponse.
+- `backend/app/modules/recharge/service.py`: Removed OTP enforcement, attached DB payment account numbers.
+- `backend/tests/test_automation_flows.py`: Added comprehensive tests for payment accounts, recharge without OTP, operator mismatch, amount bounds.
+
+Frontend:
+- `website/src/lib/types.ts`: Added `PaymentAccount` interface and updated `RechargeOrderCreated`.
+- `website/src/lib/api.ts`: Added `getPaymentAccounts()` client method.
+- `website/src/app/app/recharge/page.tsx`:
+  * Removed OtpVerificationModal import, states, and render tag.
+  * Removed "OTP যাচাই করুন" button from recipient number field.
+  * Removed OTP gate in order creation.
+  * Added dynamic DB payment accounts loading and wallet selection.
+  * Updated TrustNote with recharge automated SMS verification copy.
+- `website/src/i18n/translations/common.ts`: Added rechargeNotice and cashoutNotice security strings (BN & EN).
+- `website/src/app/how-it-works/page.tsx`: Updated recharge workflow to describe automated SMS verification.
+
+--------------------------------------------------------------------------------
+11. VERIFICATION & TEST RESULTS
+--------------------------------------------------------------------------------
+1. Automated Backend Test Suite:
+   Command: `/usr/bin/python3 -m pytest backend/tests/test_automation_flows.py -v`
+   Result: 17 passed in 1.05s
+   - test_scenario_a_automated_cashout_flow: PASSED
+   - test_scenario_b_recharge_sms_gateway_flow: PASSED
+   - test_scenario_c_duplicate_sms_deduplication: PASSED
+   - test_scenario_d_nagad_sms_parsing_and_order_matching: PASSED
+   - test_scenario_e_cooldown_and_transfer_progress: PASSED
+   - test_scenario_f_receiving_sim_reservation_and_double_spend: PASSED
+   - test_operator_mismatch_rejected_in_cashout: PASSED
+   - test_unsupported_prefix_rejected: PASSED
+   - test_admin_prefix_management_endpoints: PASSED
+   - test_01x_prefix_resolution: PASSED
+   - test_live_balance_check_blocks_insufficient_funds: PASSED
+   - test_chunking_exact_calculations: PASSED
+   - test_payment_accounts_db_endpoint: PASSED
+   - test_recharge_orders_no_otp_for_all_operators: PASSED (GP, ROBI, BANGLALINK)
+   - test_recharge_operator_mismatch_and_digit_validation: PASSED
+   - test_recharge_amount_limits: PASSED (4 rejected, 5 passed, 50000 passed, 50001 rejected)
+
+2. Production Website Compilation:
+   Command: `npm run build` in `/root/flexitaka/website`
+   Result: SUCCESS (0 errors, 22/22 static pages generated, TypeScript & ESLint clean)
+
+3. Systemd Services Status:
+   - `flexitaka-backend.service`: active (running) on 127.0.0.1:8000
+   - `flexitaka-website.service`: active (running) on 127.0.0.1:3000
+
+4. Network & API Verification:
+   - `GET /api/v1/payments/accounts`: HTTP 200 (Returns 4 active DB payment accounts)
+   - `POST /api/v1/recharge/orders`: HTTP 201 (Returns order immediately without OTP)
+   - Operator mismatch validation: HTTP 422 `OPERATOR_NUMBER_MISMATCH`
+   - 12-digit number validation: HTTP 422 `INVALID_MOBILE_NUMBER`
+   - Amount < 5: HTTP 422 `AMOUNT_OUT_OF_RANGE`
+   - Amount > 50,000: HTTP 422 `AMOUNT_OUT_OF_RANGE`
+
+--------------------------------------------------------------------------------
+12. CONCLUSION
+--------------------------------------------------------------------------------
+All items in the specification have been implemented, verified, and confirmed.
+The Recharge transaction flow is fully automated and strictly requires NO OTP
+from the customer. Payment account numbers and Cash Out receiving SIMs are
+authoritatively driven by the database.
+================================================================================

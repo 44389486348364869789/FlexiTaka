@@ -1,0 +1,300 @@
+================================================================================
+FLEXITAKA — CUSTOMER ACCOUNT SYSTEM IMPLEMENTATION OUTPUT REPORT
+================================================================================
+Timestamp: 2026-09-25 22:20:00 CEST
+Platform: FlexiTaka High-Volume Telecom Balance Marketplace (Non-Custodial)
+Architecture: Shared SIM Pool, Global BDT 10-50,000 Range, One Customer Account Multi-SIM
+
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+The Customer Account System has been successfully engineered and integrated into
+the existing FlexiTaka backend and frontend architecture without rebuilding from scratch.
+
+Key Achievements:
+- Single customer account model with passwordless Phone + FlexiTaka SMS OTP authentication.
+- Strict OTP Separation: FlexiTaka Account OTP is isolated for customer account login;
+  Cash Out Operator OTP is isolated for telecom SIM authentication; Recharge requires ZERO OTP.
+- Linked SIM Architecture: A single FlexiTaka customer account supports multiple verified SIMs
+  (e.g., GP, Robi, Banglalink, Airtel, Teletalk).
+- Non-custodial security: No SIM PINs, passwords, or raw operator session tokens are stored
+  or exposed to the frontend.
+- Zero-downtime integration with existing guest sessions and secure HMAC-backed guest-to-account
+  order linking.
+- All 50 backend integration and unit tests PASSED (100%).
+- Frontend Next.js production build succeeded with 22/22 routes compiled (0 errors).
+- Live services verified running on systemd.
+
+================================================================================
+2. WHAT ALREADY EXISTED
+================================================================================
+- Core FastAPI backend with MongoDB and Redis.
+- ZendSMS integration module and basic `AuthService` with request/verify OTP for phone authentication.
+- Ephemeral guest session architecture (`guest_session_id` and HMAC signature).
+- Automated guest-to-account order linking logic upon OTP verification.
+- Order models (`CashOutOrder`, `RechargeOrder`) with `user_id` and `guest_session_id` fields.
+- Shared SIM Pool architecture and prefix registry.
+- Frontend Next.js app with `/app`, `/app/cashout`, `/app/recharge`, `/app/orders`, `/app/order/[id]`.
+
+================================================================================
+3. WHAT WAS CHANGED
+================================================================================
+- Backend User & Profile Architecture:
+  * Implemented `LinkedSimsRepository` to manage the `user_linked_sims` collection.
+  * Extended `UsersRepository` to support updating name, email, and language preference.
+  * Created `UserService` containing business logic for profile retrieval, profile updates,
+    multi-SIM linking, duplicate SIM registration checks, authoritative operator detection,
+    and operator OTP verification lifecycle via `OperatorSessionService`.
+  * Created `/api/v1/user` router implementing clean endpoints for profile and linked SIM operations.
+  * Implemented session revocation on logout via Redis token blacklisting (`POST /api/v1/auth/logout`),
+    enforced automatically in `get_current_token_payload` dependency.
+  * Added compound database indexes on `user_linked_sims` in `indexes.py`.
+- Global Amount Range Fix:
+  * Replaced all occurrences of old ৳5 minimum order amount with authoritative ৳10
+    (Cash Out: ৳10 - ৳50,000; Recharge: ৳10 - ৳50,000) across backend validation,
+    pricing service, test suites, and frontend components/translations.
+- Frontend Customer Account & Multi-SIM System:
+  * Upgraded `/app/profile` into the complete 5-section Customer Account Hub:
+    1. Personal Information (Name, Phone, Email, Member Since, Status, Language Preference) with save functionality.
+    2. Linked Telecom SIMs management: multi-SIM cards, operator badges (GP, Robi, BL, Airtel, TT),
+       add SIM drawer with live prefix detection, operator OTP verification modal, and SIM removal.
+    3. Account Security (Non-custodial security policy, OTP separation explanation).
+    4. Order History shortcut linking to `/app/orders`.
+    5. Logout button that triggers backend session revocation and local token clearance.
+  * Enhanced `/app` Dashboard:
+    - Welcome banner displaying customer name, verified account badge, and account phone.
+    - Quick shortcuts row for Account Profile, Linked SIMs shortcut badge, and Support Desk.
+  * Added client API methods in `lib/api.ts`: `getUserProfile`, `updateUserProfile`, `getLinkedSims`,
+    `addLinkedSim`, `requestLinkedSimOtp`, `verifyLinkedSimOtp`, `removeLinkedSim`, `logout`.
+  * Added error code mappings in `lib/formatters.ts` and bilingual translations in `i18n/translations/app.ts`.
+
+================================================================================
+4. BACKEND FILES CHANGED
+================================================================================
+- `backend/app/db/repositories/linked_sims_repo.py` (NEW):
+  Repository for `user_linked_sims` collection with queries for listing, inserting,
+  updating verification status, duplicate checks, and deletion.
+- `backend/app/db/repositories/users_repo.py`:
+  Added `update_user_profile(user_id, updates)` method.
+- `backend/app/db/repositories/__init__.py`:
+  Registered `LinkedSimsRepository`.
+- `backend/app/modules/user/schemas.py` (NEW):
+  Pydantic schemas: `UserProfileResponse`, `UpdateProfileRequest`, `LinkedSimResponse`,
+  `AddLinkedSimRequest`, `VerifyLinkedSimRequest`.
+- `backend/app/modules/user/service.py` (NEW):
+  Domain logic for profile updates, linked SIMs validation, operator matching,
+  operator OTP request/verification, and security audit logs.
+- `backend/app/api/v1/user.py` (NEW):
+  User account and linked SIMs endpoints (`GET /profile`, `PUT /profile`, `GET /sims`,
+  `POST /sims`, `POST /sims/{id}/request-otp`, `POST /sims/{id}/verify-otp`, `DELETE /sims/{id}`).
+- `backend/app/api/v1/router.py`:
+  Included `user_router` with prefix `/user`.
+- `backend/app/api/v1/auth.py`:
+  Added `POST /auth/logout` endpoint that blacklists active JWTs in Redis.
+- `backend/app/api/dependencies.py`:
+  Added Redis blacklist check in `get_current_token_payload` to reject revoked tokens immediately.
+- `backend/app/db/indexes.py`:
+  Added compound indexes for `user_linked_sims`: `sim_id` (unique), `(user_id, phone)` (unique),
+  `phone`, `user_id`, `status`.
+- `backend/app/core/constants.py`:
+  Updated `MIN_ORDER_AMOUNT_BDT = 10` and `MIN_ORDER_AMOUNT_POISHA = 1000`.
+- `backend/tests/test_customer_account.py` (NEW):
+  Unit and integration test suite testing registration, OTP login, profile updates,
+  multi-SIM linkage, operator verification, duplicate rejections, IDOR protections, and logout.
+
+================================================================================
+5. FRONTEND FILES CHANGED
+================================================================================
+- `website/src/app/app/profile/page.tsx`:
+  Full customer account page with 5 sections: Personal Info, Linked SIMs, Account Security,
+  Order History shortcut, and Session Logout.
+- `website/src/app/app/page.tsx`:
+  Enhanced customer dashboard with customer info banner, linked SIM status badge,
+  and quick shortcuts to profile, SIMs, and support.
+- `website/src/lib/types.ts`:
+  Added `UserProfile` and `LinkedSim` TypeScript interfaces.
+- `website/src/lib/api.ts`:
+  Added API wrapper methods for profile, linked SIMs CRUD/verification, and logout;
+  removed premature terminal status for cash out orders.
+- `website/src/lib/formatters.ts`:
+  Added error code translations for account and SIM operations.
+- `website/src/i18n/translations/app.ts`:
+  Added comprehensive Bengali and English translation keys for customer profile and linked SIMs.
+- `website/src/components/StatusBadge.tsx`:
+  Added status badges for `WAITING_FOR_SIM` and `WAITING_FOR_COOLDOWN`.
+
+================================================================================
+6. API CHANGES & ENDPOINT SPECIFICATION
+================================================================================
+1. `GET /api/v1/user/profile`
+   - Headers: `Authorization: Bearer <token>`
+   - Response: `UserProfileResponse` (user_id, phone, name, email, language_preference, status, created_at, linked_sims_count)
+2. `PUT /api/v1/user/profile`
+   - Headers: `Authorization: Bearer <token>`
+   - Body: `{"name": "...", "email": "...", "language_preference": "bn"|"en"}`
+   - Response: Updated `UserProfileResponse`
+3. `GET /api/v1/user/sims`
+   - Headers: `Authorization: Bearer <token>`
+   - Response: `List[LinkedSimResponse]`
+4. `POST /api/v1/user/sims`
+   - Headers: `Authorization: Bearer <token>`
+   - Body: `{"phone": "017XXXXXXXX", "label": "Personal GP"}`
+   - Validation: BD phone format, operator detection from prefix registry, duplicate SIM check.
+   - Response: Created `LinkedSimResponse` (status: "UNVERIFIED")
+5. `POST /api/v1/user/sims/{sim_id}/request-otp`
+   - Headers: `Authorization: Bearer <token>`
+   - Initiates Operator OTP challenge to the customer's SIM via operator gateway.
+   - Response: `{"success": true, "reference_id": "...", "operator_code": "GP", "message": "..."}`
+6. `POST /api/v1/user/sims/{sim_id}/verify-otp`
+   - Headers: `Authorization: Bearer <token>`
+   - Body: `{"otp": "1234", "reference_id": "..."}`
+   - Validates OTP with operator gateway, stores ephemeral encrypted session token,
+     updates SIM status to `VERIFIED` and records `verified_at` timestamp.
+   - Response: Updated `LinkedSimResponse`
+7. `DELETE /api/v1/user/sims/{sim_id}`
+   - Headers: `Authorization: Bearer <token>`
+   - Validates ownership (no IDOR) and removes linked SIM from account.
+   - Response: `{"success": true, "message": "Linked SIM removed successfully"}`
+8. `POST /api/v1/auth/logout`
+   - Headers: `Authorization: Bearer <token>`
+   - Extracts JWT `jti` and expires it in Redis for the remainder of its lifetime (up to 7 days).
+   - Response: `{"success": true, "message": "Successfully logged out"}`
+
+================================================================================
+7. DATABASE CHANGES
+================================================================================
+- New Collection: `user_linked_sims`
+  Fields:
+  - `sim_id` (string, unique UUID)
+  - `user_id` (string, foreign key to `users.user_id`)
+  - `phone` (string, normalized 11-digit BD number)
+  - `operator_code` (enum: "GP", "ROBI", "BANGLALINK", "AIRTEL", "TELETALK")
+  - `label` (optional string)
+  - `is_primary` (boolean)
+  - `status` (enum: "UNVERIFIED", "VERIFIED", "SUSPENDED")
+  - `operator_session_ref` (string, reference to encrypted operator session in Redis)
+  - `verified_at` (datetime)
+  - `last_balance_bdt` (optional float)
+  - `created_at` (datetime)
+  - `updated_at` (datetime)
+- Indexes Created in `indexes.py`:
+  - `sim_id` (unique)
+  - `(user_id, phone)` (unique compound)
+  - `phone`
+  - `user_id`
+  - `status`
+
+================================================================================
+8. AUTHENTICATION FLOW
+================================================================================
+1. Customer enters mobile phone (e.g., 017XXXXXXXX).
+2. Backend generates a 6-digit cryptographic OTP, sends via ZendSMS, and stores
+   the hash in Redis with a 5-minute TTL. Rate limiting: 3 OTP requests / 15 mins.
+3. Customer submits OTP.
+4. Backend verifies hash, marks phone verified, generates standard HS256 JWT,
+   and links any prior guest orders from `guest_session_id` to `user.user_id`.
+5. On logout, `POST /auth/logout` blacklists the JWT in Redis. Future API requests
+   with this JWT immediately receive 401 Unauthorized.
+6. Operator OTP is strictly NOT used for FlexiTaka account login.
+
+================================================================================
+9. LINKED SIM FLOW
+================================================================================
+1. Logged-in customer submits phone number to add under their account.
+2. Backend verifies operator prefix from authoritative prefix registry.
+3. Backend checks uniqueness: prevents duplicate registration of the same phone number
+   under the same account and across active linked SIMs.
+4. SIM is created in `UNVERIFIED` state.
+5. Customer clicks "Verify Operator OTP".
+6. Operator challenge is requested via telecom gateway (`request-otp`).
+7. Customer enters operator OTP.
+8. Operator session is established securely on backend. SIM is marked `VERIFIED`.
+9. PINs, passwords, and raw operator tokens are NEVER stored in the database or sent to frontend.
+
+================================================================================
+10. SECURITY IMPLEMENTATIONS
+================================================================================
+- Strict OTP Separation:
+  * FlexiTaka Account OTP: Account authentication only.
+  * Operator OTP: Telecom SIM verification only.
+  * Recharge: Zero OTP required.
+- Non-Custodial: No SIM PINs, passwords, or raw telecom tokens stored or transmitted.
+- IDOR Protection: All profile and SIM mutations verify `sim.user_id == current_user.user_id`.
+- Replay & Revocation: Blacklisted tokens stored in Redis with TTL matching JWT expiration.
+- Rate Limiting: OTP request throttled to prevent SMS flooding.
+
+================================================================================
+11. TEST RESULTS
+================================================================================
+Backend pytest execution:
+Command: APP_ENV=test python3 -m pytest tests/test_shared_sim_pool.py tests/test_pricing.py tests/test_automation_flows.py tests/test_cashout_lifecycle.py tests/test_guest_order_linking.py tests/test_customer_account.py
+
+Results:
+- tests/test_shared_sim_pool.py:           11 passed (100%)
+- tests/test_pricing.py:                    4 passed (100%)
+- tests/test_automation_flows.py:          17 passed (100%)
+- tests/test_cashout_lifecycle.py:          2 passed (100%)
+- tests/test_guest_order_linking.py:       13 passed (100%)
+- tests/test_customer_account.py:           3 passed (100%)
+TOTAL: 50 passed in 473.31s (0 failed, 0 skipped) [100% PASS]
+
+Customer Account Test Coverage:
+1. `test_customer_account_auth_and_profile`:
+   - Account creation via OTP login
+   - JWT generation & verification
+   - Profile fetch & verification
+   - Profile update (name, email, language preference)
+2. `test_linked_sim_lifecycle_and_operator_verification`:
+   - Adding SIMs under single account
+   - Duplicate SIM rejection
+   - Operator prefix mismatch rejection
+   - Operator OTP request & verification via operator session service
+   - Verified status activation & verification timestamps
+   - SIM removal and IDOR protection
+3. `test_account_security_and_logout_revocation`:
+   - Session logout via `/api/v1/auth/logout`
+   - Token blacklisting in Redis
+   - 401 Unauthorized verification on subsequent API requests
+
+================================================================================
+12. BUILD RESULTS
+================================================================================
+Frontend Next.js production build:
+Command: npm run build (Next.js 14.2.15)
+
+Results:
+- Compiled successfully
+- TypeScript check: 0 errors (tsc --noEmit clean)
+- Lint check: 0 errors
+- Generating static pages: 22/22 routes generated
+- Routes verified:
+  /
+  /about
+  /app
+  /app/admin/prefixes
+  /app/cashout
+  /app/order/[id]
+  /app/orders
+  /app/profile
+  /app/recharge
+  /app/support
+  /cash-out
+  /faq
+  /how-it-works
+  /pricing
+  /privacy
+  /recharge
+  /support
+  /terms
+
+Systemd Services:
+- `flexitaka-backend.service`: active (running), port 8000
+- `flexitaka-website.service`: active (running), port 3000
+- Health check `GET http://127.0.0.1:8000/api/v1/health`: HTTP 200 OK
+- Frontend check `HEAD http://127.0.0.1:3000/app/profile`: HTTP 200 OK
+
+================================================================================
+13. REMAINING ISSUES
+================================================================================
+None. All requirements specified in the Customer Account System implementation
+prompt and Global Amount Range Fix have been implemented, tested, and validated.
+================================================================================

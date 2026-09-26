@@ -185,4 +185,20 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
         IndexModel([("updated_at", DESCENDING)])
     ])
 
+    # 24. payment_accounts (Authoritative DB Payment Accounts)
+    await db.payment_accounts.create_indexes([
+        IndexModel([("account_id", ASCENDING)], unique=True),
+        IndexModel([("method", ASCENDING)]),
+        IndexModel([("is_active", ASCENDING)])
+    ])
+
+    # 25. user_linked_sims (Customer Linked SIMs)
+    await db.user_linked_sims.create_indexes([
+        IndexModel([("sim_id", ASCENDING)], unique=True),
+        IndexModel([("user_id", ASCENDING), ("phone", ASCENDING)], unique=True),
+        IndexModel([("phone", ASCENDING)]),
+        IndexModel([("user_id", ASCENDING)]),
+        IndexModel([("status", ASCENDING)])
+    ])
+
     logger.info("All MongoDB collection indexes successfully confirmed.")

@@ -72,7 +72,7 @@ export const privacyTranslations = {
         id: "passwords-otp",
         title: "৮. জিরো-ক্রেডেনশিয়াল নীতি (Zero-Telecom-Secret Policy)",
         content: [
-          "কঠোর নীতি: FlexiTaka কখনোই গ্রাহকের সিম পিন (SIM PIN), মাইজিপি/মাইরবি/মাইবিএল পাসওয়ার্ড বা টেলিকম এসএমএস ভেরিফিকেশন ওটিপি সংগ্রহ বা সঞ্চয় করে না। লেনদেনের নিয়ন্ত্রণ গ্রাহকের হ্যান্ডসেটে সংরক্ষিত।",
+          "কঠোর নীতি: FlexiTaka কখনোই গ্রাহকের সিম পিন (SIM PIN) বা অ্যাকাউন্ট পাসওয়ার্ড সংগ্রহ বা সংরক্ষণ করে না। আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে FlexiTaka একবারের operator verification OTP চাইতে পারে, যা শুধুমাত্র অনুমোদিত সেশন যাচাইয়ে ব্যবহৃত হয়।",
         ],
       },
       {
@@ -201,7 +201,7 @@ export const privacyTranslations = {
         id: "passwords-otp",
         title: "8. Zero-Telecom-Secret Policy",
         content: [
-          "Strict Principle: We NEVER collect, solicit, or store your SIM PIN, MyGP/MyRobi/MyBL account passwords, or telecom SMS OTPs. Transfers are executed entirely by you.",
+          "Strict Principle: FlexiTaka will never collect, solicit, or store your SIM PIN or account passwords. An operator verification OTP may be requested when needed to securely authenticate your SIM account for supported operations, and is used strictly for that verification session.",
         ],
       },
       {

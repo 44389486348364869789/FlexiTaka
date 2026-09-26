@@ -3,12 +3,13 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { Language } from "./types";
 import { translations, TranslationsType } from "./translations";
+import { api, getStoredAuthToken } from "@/lib/api";
 
 interface LanguageContextType {
   language: Language;
   lang: Language;
   isBn: boolean;
-  setLanguage: (lang: Language) => void;
+  setLanguage: (lang: Language, syncBackend?: boolean) => void;
   toggleLanguage: () => void;
   t: (path: string, fallback?: string) => string;
   tr: TranslationsType;
@@ -47,26 +48,10 @@ export function LanguageProvider({
 }) {
   const [language, setLanguageState] = useState<Language>(initialLanguage);
 
-  // Sync with client-side localStorage on mount without causing hydration mismatch
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
-      if (stored === "en" || stored === "bn") {
-        if (stored !== language) {
-          setLanguageState(stored);
-          document.documentElement.lang = stored;
-          document.cookie = `${COOKIE_NAME}=${stored}; path=/; max-age=31536000; SameSite=Lax`;
-        }
-      } else {
-        localStorage.setItem(STORAGE_KEY, initialLanguage);
-      }
-    } catch {
-      // storage unavailable
-    }
-  }, [initialLanguage, language]);
-
-  const setLanguage = useCallback((lang: Language) => {
+  // Core language setter with immediate DOM, Cookie, localStorage, and optional backend sync
+  const setLanguage = useCallback((lang: Language, syncBackend: boolean = false) => {
     setLanguageState(lang);
+
     if (typeof document !== "undefined") {
       document.documentElement.lang = lang;
       document.cookie = `${COOKIE_NAME}=${lang}; path=/; max-age=31536000; SameSite=Lax`;
@@ -76,11 +61,65 @@ export function LanguageProvider({
         // storage unavailable
       }
     }
+
+    if (syncBackend) {
+      const token = getStoredAuthToken();
+      if (token) {
+        api.updateUserProfile({ language_preference: lang }).catch((err) => {
+          console.warn("Background language preference sync failed:", err);
+        });
+      }
+    }
   }, []);
 
   const toggleLanguage = useCallback(() => {
-    setLanguage(language === "bn" ? "en" : "bn");
+    const nextLang = language === "bn" ? "en" : "bn";
+    setLanguage(nextLang, true);
   }, [language, setLanguage]);
+
+  // Sync with client-side localStorage on mount without causing hydration mismatch
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
+      if (stored === "en" || stored === "bn") {
+        if (stored !== language) {
+          setLanguage(stored, false);
+        }
+      } else {
+        localStorage.setItem(STORAGE_KEY, initialLanguage);
+      }
+    } catch {
+      // storage unavailable
+    }
+
+    // On authenticated session load: Fetch language_preference from /api/v1/user/profile
+    const token = getStoredAuthToken();
+    if (token) {
+      api.getUserProfile()
+        .then((profile) => {
+          if (profile && (profile.language_preference === "en" || profile.language_preference === "bn")) {
+            setLanguage(profile.language_preference, false);
+          }
+        })
+        .catch(() => {
+          // Keep current local language if network offline
+        });
+    }
+  }, [initialLanguage, language, setLanguage]);
+
+  // Sync across tabs via storage event
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && (e.newValue === "en" || e.newValue === "bn")) {
+        setLanguageState(e.newValue as Language);
+        if (typeof document !== "undefined") {
+          document.documentElement.lang = e.newValue;
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const tr = useMemo(() => {
     return translations[language] || translations.bn;

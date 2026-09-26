@@ -17,6 +17,9 @@ def get_sms_provider(provider_name: Optional[str] = None) -> SMSProvider:
     Factory function to get the configured SMS provider.
     Priority: explicit argument -> settings.SMS_PROVIDER -> 'mock' fallback.
     """
+    if provider_name is None and getattr(settings, "APP_ENV", "") == "test":
+        return MockSMSProvider()
+
     name = (provider_name or settings.SMS_PROVIDER or "mock").lower().strip()
 
     if name == "zendsms":

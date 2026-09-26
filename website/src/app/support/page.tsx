@@ -177,8 +177,8 @@ export default function SupportPublicPage() {
               </h3>
               <p style={{ fontSize: "0.875rem", color: "var(--text-secondary)", lineHeight: 1.55, marginBottom: "20px" }}>
                 {isBn
-                  ? "USSD ডায়াল কোড, লেনদেন সীমা এবং নিরাপত্তা সংক্রান্ত প্রশ্নের উত্তর দেখুন।"
-                  : "Review our comprehensive FAQ covering transfer codes, limits, payout methods, and security."}
+                  ? "অপারেটর সংযোগ, লেনদেন সীমা এবং নিরাপত্তা সংক্রান্ত প্রশ্নের উত্তর দেখুন।"
+                  : "Review our comprehensive FAQ covering operator connections, limits, payout methods, and security."}
               </p>
             </div>
             <Link href="/faq" className="btn btn-outline btn-sm btn-full" style={{ height: "40px" }}>

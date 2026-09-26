@@ -9,7 +9,7 @@ import uuid
 from typing import Any, Dict, Optional
 import httpx
 from app.core.config import settings
-from app.core.constants import OperatorCode
+from app.core.constants import OperatorCode, QuotaWindowType, TransferAuthMode
 from app.core.exceptions import ExternalServiceException, ValidationException
 from app.core.logging import logger
 from app.modules.operators.base import BaseOperatorAdapter
@@ -32,6 +32,34 @@ class GPAdapter(BaseOperatorAdapter):
     @property
     def default_cooldown_seconds(self) -> int:
         return 0  # No mandatory cooldown between chunks unless throttled
+
+    @property
+    def transfer_auth_mode(self) -> TransferAuthMode:
+        return TransferAuthMode.SESSION_PLUS_PIN
+
+    @property
+    def same_otp_pin_setup(self) -> bool:
+        return False  # GP PIN reset requires separate SMS OTP flow (/reset-pin/initiate, /otp-verify)
+
+    @property
+    def pin_required(self) -> bool:
+        return True
+
+    @property
+    def window_type(self) -> QuotaWindowType:
+        return QuotaWindowType.CALENDAR_MONTH
+
+    @property
+    def monthly_transfer_count_limit(self) -> Optional[int]:
+        return 10  # Max 10 transfers per calendar month
+
+    @property
+    def monthly_amount_limit_bdt(self) -> Optional[int]:
+        return 1000  # Max 1,000 BDT per calendar month
+
+    @property
+    def daily_amount_limit_bdt(self) -> Optional[int]:
+        return 1000
 
     def _build_headers(self, device_id: str, msisdn_88: str, access_token: Optional[str] = None) -> Dict[str, str]:
         headers = {
@@ -95,7 +123,13 @@ class GPAdapter(BaseOperatorAdapter):
                 "refresh_token": f"mock_gp_refresh_{msisdn_88}",
                 "token_type": "Bearer",
                 "expires_in": 86400,
+                "expire_at": int(time.time()) + 86400,
                 "msisdn": msisdn,
+                "user_id": f"gp_uid_{msisdn_88}",
+                "customer_account_id": msisdn_88,
+                "sim_type": "Prepaid",
+                "balance_transfer_available": None,
+                "extra_data": {"device_id": device_id},
                 "balance_bdt": 500.0,
                 "message": "GP OTP verified successfully."
             }
@@ -121,10 +155,14 @@ class GPAdapter(BaseOperatorAdapter):
                     access_token = data["access_token"]
                     refresh_token = data.get("refresh_token")
                     expire_at = data.get("expire_at", int(time.time()) + 86400)
-                    user_id = str(data.get("id"))
+                    user_id = str(data.get("id")).strip() if data.get("id") else None
 
                     # Auto register for balance transfer
-                    await self._ensure_bt_registered(user_id, device_id, msisdn_88, access_token)
+                    if user_id:
+                        await self._ensure_bt_registered(user_id, device_id, msisdn_88, access_token)
+
+                    raw_cust = data.get("customer_id") or data.get("account_id") or user_id
+                    customer_account_id = str(raw_cust).strip() if raw_cust else None
 
                     return {
                         "success": True,
@@ -132,7 +170,7 @@ class GPAdapter(BaseOperatorAdapter):
                         "refresh_token": refresh_token,
                         "expire_at": expire_at,
                         "user_id": user_id,
-                        "customer_account_id": user_id,
+                        "customer_account_id": customer_account_id,
                         "extra_data": {
                             "device_id": device_id,
                             "profile_hash": data.get("profile_hash", "")
@@ -155,6 +193,15 @@ class GPAdapter(BaseOperatorAdapter):
                 pass
 
     async def refresh_session(self, msisdn: str, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        if getattr(settings, "APP_ENV", "") == "test":
+            return {
+                "success": True,
+                "access_token": "mock_refreshed_token",
+                "refresh_token": "mock_refresh",
+                "expire_at": int(time.time()) + 86400,
+                "message": "GP session refreshed successfully."
+            }
+
         refresh_token = session_data.get("refresh_token")
         user_id = session_data.get("user_id")
         device_id = session_data.get("extra_data", {}).get("device_id") or str(uuid.uuid4()).upper()
@@ -186,10 +233,11 @@ class GPAdapter(BaseOperatorAdapter):
 
     async def get_balance(self, msisdn: str, session_data: Dict[str, Any]) -> Dict[str, Any]:
         if getattr(settings, "APP_ENV", "") == "test":
+            sim_balance = float(session_data.get("balance_bdt", 500.0))
             return {
                 "success": True,
-                "balance_bdt": 500.0,
-                "raw_balance": "500.00",
+                "balance_bdt": sim_balance,
+                "raw_balance": f"{sim_balance:.2f}",
                 "expiry_date": "2026-12-31",
                 "message": "GP balance fetched successfully."
             }
@@ -258,8 +306,8 @@ class GPAdapter(BaseOperatorAdapter):
         msisdn_88 = format_msisdn_with_prefix(msisdn, prefix="88")
         payee_norm = normalize_msisdn(recipient_msisdn)
 
-        if amount_bdt < 10 or amount_bdt > 100:
-            return {"success": False, "message": f"Amount {amount_bdt} BDT violates GP per-transfer limit (10-100 BDT)."}
+        if amount_bdt < 1 or amount_bdt > 100:
+            return {"success": False, "message": f"Amount {amount_bdt} BDT violates GP per-transfer limit (1-100 BDT)."}
 
         if getattr(settings, "APP_ENV", "") == "test":
             return {
@@ -303,6 +351,9 @@ class GPAdapter(BaseOperatorAdapter):
                 return {"success": False, "message": f"Network exception during GP transfer: {str(e)}"}
 
     async def initiate_pin_reset(self, msisdn: str, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        if getattr(settings, "APP_ENV", "") == "test":
+            return {"success": True, "reference_id": f"gp_ref_{int(time.time())}", "message": "PIN reset OTP sent to GP SIM."}
+
         user_id = session_data.get("user_id")
         access_token = session_data.get("access_token")
         device_id = session_data.get("extra_data", {}).get("device_id") or str(uuid.uuid4()).upper()
@@ -326,6 +377,9 @@ class GPAdapter(BaseOperatorAdapter):
                 return {"success": False, "message": f"Network error during GP PIN reset initiate: {str(e)}"}
 
     async def verify_pin_reset_otp(self, msisdn: str, otp: str, session_data: Dict[str, Any], reference_id: Optional[str] = None) -> Dict[str, Any]:
+        if getattr(settings, "APP_ENV", "") == "test":
+            return {"success": True, "message": "GP PIN reset OTP verified."}
+
         user_id = session_data.get("user_id")
         access_token = session_data.get("access_token")
         device_id = session_data.get("extra_data", {}).get("device_id") or str(uuid.uuid4()).upper()
@@ -351,6 +405,9 @@ class GPAdapter(BaseOperatorAdapter):
                 return {"success": False, "message": f"Network error verifying GP PIN reset OTP: {str(e)}"}
 
     async def set_or_reset_pin(self, msisdn: str, new_pin: str, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        if getattr(settings, "APP_ENV", "") == "test":
+            return {"success": True, "message": "GP transfer PIN updated successfully."}
+
         user_id = session_data.get("user_id")
         access_token = session_data.get("access_token")
         device_id = session_data.get("extra_data", {}).get("device_id") or str(uuid.uuid4()).upper()

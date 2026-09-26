@@ -168,16 +168,29 @@ class SmsGatewayService:
         recharge_face_value_poisha = matched_order.get("metadata", {}).get("recharge_face_value_poisha") or matched_order["amount"]
         recharge_amount_bdt = int(recharge_face_value_poisha / 100)
 
-        # Select FlexiTaka SIM for outgoing transfer
-        sim = await self.sims_repo.select_best_sim(operator_code, recharge_face_value_poisha, for_recharge=True)
+        # Select FlexiTaka SIM for outgoing transfer using Per-SIM Eligibility Engine
+        sim = await self.sims_repo.select_best_sim(
+            operator_code=operator_code,
+            required_amount_poisha=recharge_face_value_poisha,
+            for_recharge=True,
+            destination_msisdn=recharge_number
+        )
         if not sim:
-            logger.error("No active receiving SIM with sufficient balance for operator %s recharge of %s", operator_code, order_id)
-            # Order is marked PAYMENT_VERIFIED, staff notified
+            logger.info("No active receiving SIM currently eligible for operator %s recharge of order %s. Queuing in WAITING_FOR_SIM.", operator_code, order_id)
+            await self.orders.update_one(
+                {"order_id": order_id},
+                {"$set": {
+                    "status": "WAITING_FOR_SIM",
+                    "metadata.waiting_reason": "Waiting for an available recharge line.",
+                    "metadata.customer_safe_status": "Waiting for an available recharge line."
+                }}
+            )
             return {
                 "success": True,
                 "status": "PAYMENT_VERIFIED_AWAITING_INVENTORY",
                 "order_id": order_id,
                 "transaction_id": trx_id,
+                "customer_status": "Waiting for an available recharge line.",
                 "message": "Payment verified! Recharge queued waiting for operator inventory capacity."
             }
 
@@ -205,11 +218,12 @@ class SmsGatewayService:
             total_amount_bdt=recharge_amount_bdt
         )
 
-        # Execute first chunk
+        # Execute first chunk using securely decrypted SIM PIN
         sim_session = await self.transfer_engine.session_service.get_session(sim["mobile_number"], operator_code) or {}
+        sim_pin = await self.sims_repo.get_sim_transfer_pin(sim_id)
         chunk_res = await self.transfer_engine.execute_next_chunk(
             order_id=order_id,
-            pin=sim.get("transfer_pin", "1234"),
+            pin=sim_pin,
             session_data=sim_session
         )
 

@@ -53,26 +53,39 @@ async def verify_payment_ios_shortcut(
     nonce = None
     source_device = "iphone_shortcut"
 
-    if payload:
+    if payload and payload.raw_sms:
         raw_sms = payload.raw_sms
         secret = secret or payload.secret
         nonce = payload.nonce
         source_device = payload.source_device or source_device
     else:
-        # Check if form data or plain text
-        try:
-            form = await request.form()
-            if form:
+        content_type = (request.headers.get("content-type") or "").lower()
+        if "multipart/form-data" in content_type or "application/x-www-form-urlencoded" in content_type:
+            try:
+                form = await request.form()
                 raw_sms = form.get("raw_sms") or form.get("sms") or form.get("message")
                 secret = secret or form.get("secret")
                 nonce = form.get("nonce")
-        except Exception:
-            pass
-
-        if not raw_sms:
+                source_device = form.get("source_device") or source_device
+            except Exception:
+                pass
+        else:
             try:
                 body_bytes = await request.body()
-                raw_sms = body_bytes.decode("utf-8").strip()
+                if body_bytes:
+                    raw_text = body_bytes.decode("utf-8").strip()
+                    if raw_text.startswith("{") and raw_text.endswith("}"):
+                        import json
+                        try:
+                            parsed_json = json.loads(raw_text)
+                            raw_sms = parsed_json.get("raw_sms") or parsed_json.get("sms") or parsed_json.get("message")
+                            secret = secret or parsed_json.get("secret")
+                            nonce = parsed_json.get("nonce")
+                            source_device = parsed_json.get("source_device") or source_device
+                        except Exception:
+                            raw_sms = raw_text
+                    else:
+                        raw_sms = raw_text
             except Exception:
                 pass
 
@@ -89,3 +102,4 @@ async def verify_payment_ios_shortcut(
     )
 
     return result
+

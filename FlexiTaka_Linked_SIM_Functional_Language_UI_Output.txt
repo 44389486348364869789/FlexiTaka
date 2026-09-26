@@ -1,0 +1,142 @@
+================================================================================
+FLEXITAKA — LINKED SIM FUNCTIONAL UX + LANGUAGE UI REMOVAL VALIDATION REPORT
+================================================================================
+Timestamp: 2026-09-26T11:59:45+02:00
+Environment: Production Ready (Next.js 14.2.15 / FastAPI / MongoDB)
+Scope:
+  1. Linked SIM Functional UX (Cash Out & Recharge)
+  2. Language Preference Field Removal from Profile UI & Profile API Update
+  3. Top Header Language Button Removal
+  4. Responsive UI Rebalancing
+  5. Build & Validation Suite (tsc --noEmit, npm run build)
+
+--------------------------------------------------------------------------------
+1. LINKED SIM FEATURES IMPLEMENTED
+--------------------------------------------------------------------------------
+- Authoritative Data Source:
+  * Customer's linked SIMs are retrieved strictly from `GET /api/v1/user/sims` via `api.getLinkedSims()`.
+  * Only SIM cards with status === "VERIFIED" are eligible and displayed in shortcut selectors (`verifiedSims = linkedSims.filter(s => s.status === "VERIFIED")`). Unverified SIMs or pending verifications are strictly excluded.
+  * Zero operator tokens, PINs, or credentials are exposed in client-side code, state, or DOM elements. Backend remains the authoritative validator.
+
+- Cash Out Integration (`/app/cashout`):
+  * "Use Linked SIM" / "আমার যুক্ত সিম (Saved SIMs)" selector card appears dynamically when authenticated customers have one or more verified SIMs.
+  * Each chip displays: Operator badge (GP / ROBI / BANGLALINK), formatted phone number, custom label (if set), live/cached balance (৳), and verified checkmark.
+  * Selection Action:
+    - Auto-fills source phone number and operator code.
+    - Queries `api.getLiveBalance(sim.phone)` asynchronously (`/api/v1/operators/balance/live`).
+    - If operator session is active and valid, sets live balance and marks phone as verified.
+    - If operator session is expired or requires authentication, the error is safely caught and verified status is cleared (`setVerifiedPhone(null)`). When the customer continues to order placement, the standard operator OTP verification modal (`OtpVerificationModal`) is seamlessly triggered.
+    - Provides a "+ অন্য নম্বর লিখুন" / "+ Enter other number" shortcut to clear selection and manually enter any arbitrary SIM number.
+    - If the customer manually edits the phone number input, the linked SIM selection is automatically cleared.
+
+- Recharge Integration (`/app/recharge`):
+  * Quick "My SIM" / "আমার নম্বর (My SIM)" chip selector displayed prominently above the recipient details stage for authenticated customers with verified SIMs.
+  * Selection Action:
+    - Instantly auto-fills recipient mobile number and operator.
+    - Smoothly transitions focus to the recharge amount input for fast checkout.
+    - Allows clear toggle via "+ অন্য নম্বরে রিচার্জ করুন" / "+ Recharge another number" to enter any recipient number.
+    - Manual phone editing automatically deselects the chip.
+
+--------------------------------------------------------------------------------
+2. LANGUAGE UI REMOVAL & I18N PRESERVATION
+--------------------------------------------------------------------------------
+- Top Header Language Button:
+  * Removed the desktop top header `<LanguageSwitcher>` button from `website/src/components/Navbar.tsx`.
+  * No replacement button created in the header navbar. Header spacing and CTA hierarchy rebalanced cleanly.
+  * Existing language control in the mobile drawer menu (`LanguageSwitcher`) and footer (`LanguageSwitcher`) remain fully functional.
+
+- Profile Page Language Preference Field:
+  * Removed "পছন্দের ভাষা / Language Preference" form-group completely from `website/src/app/app/profile/page.tsx`.
+  * Removed `langPref` local state and sync hooks.
+  * Removed `langPrefLabel` from translation dictionary in `website/src/i18n/translations/app.ts`.
+  * Profile update API payload from UI now sends only `{ name, email }`, keeping the profile page clean and focused on personal identity and security.
+  * Existing Bengali/English i18n system (`LanguageContext.tsx`) remains completely intact, preserving locale cookies, localStorage persistence, and seamless translation switching across all pages.
+
+--------------------------------------------------------------------------------
+3. CLEAN UI & RESPONSIVE REBALANCING
+--------------------------------------------------------------------------------
+- Profile Form Layout:
+  * Rebalanced from 4 fields to a clean 3-field responsive grid (`gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))"`):
+    1. Account Phone (Read-Only authoritative phone)
+    2. Full Name (Editable)
+    3. Email Address (Editable)
+  * Eliminates awkward white space, gaps, and misalignment across mobile, tablet, and desktop viewports.
+- Cash Out & Recharge Saved SIM Cards:
+  * Designed with subtle borders, gentle hover/active styles, and clear contrast.
+  * Mobile flex-wrap ensures chips stack gracefully on small phone screens without horizontal scrolling or overflow.
+
+--------------------------------------------------------------------------------
+4. FILES CHANGED
+--------------------------------------------------------------------------------
+1. `website/src/components/Navbar.tsx`
+   - Removed `<LanguageSwitcher>` from desktop `header-actions-group`.
+   - Preserved mobile drawer language switcher and navigation links.
+
+2. `website/src/app/app/profile/page.tsx`
+   - Removed `Globe` icon import.
+   - Removed `langPref` state and language preference synchronization logic.
+   - Updated `handleUpdateProfile` to send only `{ name, email }`.
+   - Removed Language Preference form input from JSX.
+   - Rebalanced personal info grid for responsive layout.
+
+3. `website/src/i18n/translations/app.ts`
+   - Removed `langPrefLabel` from Bengali (`bn`) and English (`en`) translation dictionaries.
+
+4. `website/src/app/app/cashout/page.tsx`
+   - Imported `LinkedSim` and `Smartphone`.
+   - Added state for `linkedSims`, `selectedSimId`, `checkingSimSession`.
+   - Added `useEffect` to fetch verified SIMs from `api.getLinkedSims()`.
+   - Added `handleSelectLinkedSim` with live balance check, session expiration detection, and operator auto-selection.
+   - Added saved SIM selector card UI with responsive chips and "+ অন্য নম্বর লিখুন" toggle.
+
+5. `website/src/app/app/recharge/page.tsx`
+   - Imported `LinkedSim` and `Smartphone`.
+   - Added state for `linkedSims`, `selectedSimId`.
+   - Added `useEffect` to fetch verified SIMs from `api.getLinkedSims()`.
+   - Added `handleSelectLinkedSim` and auto-fill logic.
+   - Added "My SIM" / "আমার নম্বর" selector card UI above operator/recipient section.
+
+--------------------------------------------------------------------------------
+5. TESTS & BUILD RESULTS
+--------------------------------------------------------------------------------
+1. TypeScript Validation:
+   Command: `npx tsc --noEmit`
+   Result: Exit Code 0 (0 errors)
+
+2. Next.js Production Build:
+   Command: `npm run build`
+   Result: Exit Code 0
+   Output:
+     ✓ Compiled successfully
+     ✓ Linting and checking validity of types
+     ✓ Collecting page data
+     ✓ Generating static pages (22/22)
+     ✓ Collecting build traces
+     ✓ Finalizing page optimization
+     All routes including `/app/cashout`, `/app/recharge`, and `/app/profile` compiled cleanly.
+
+3. Backend Test Suite:
+   Command: `python3 -m pytest backend/tests/test_customer_account.py`
+   Result: 4 passed in 0.87s (100% PASS)
+
+4. Service Health & Systemd Verification:
+   Command: `systemctl restart flexitaka-website flexitaka-backend`
+   Result: Both services restarted successfully (Exit Code 0)
+   Health Checks:
+     - Backend API: `http://localhost:8000/api/v1/health` -> HTTP 200 OK (`{"status":"healthy"}`)
+     - Frontend Website: `http://localhost:3000/` -> HTTP 200 OK
+
+5. Functional Verification:
+   - Verified SIMs -> Cash Out: Auto-fills phone + operator, tests live session.
+   - Unverified SIMs: Excluded via `.filter(s => s.status === "VERIFIED")`.
+   - Expired Operator Session: Gracefully caught; `verifiedPhone` cleared; prompts operator OTP modal on continuation.
+   - Verified SIMs -> Recharge: Quick "My SIM" selector auto-fills destination number + operator.
+   - Profile UI: Free of language preference field; clean 3-field layout.
+   - Header: Separate language button removed; language control retained in drawer & footer.
+   - i18n System: Bengali/English switching fully operational.
+
+--------------------------------------------------------------------------------
+6. REMAINING ISSUES
+--------------------------------------------------------------------------------
+None. All functional UX requirements, safety constraints, UI removals, and build validations have succeeded with zero errors.
+================================================================================

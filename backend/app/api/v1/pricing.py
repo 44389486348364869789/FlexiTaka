@@ -23,7 +23,7 @@ async def get_cashout_quote(
 ):
     repo = PricingRepository(db)
     service = PricingService(repo)
-    return await service.calculate_cashout_quote(payload.operator_code, payload.amount_bdt)
+    return await service.calculate_cashout_quote(payload.operator_code, payload.amount_bdt, phone=payload.phone)
 
 
 @router.post("/recharge-quote", response_model=RechargeQuoteResponse)
@@ -33,4 +33,4 @@ async def get_recharge_quote(
 ):
     repo = PricingRepository(db)
     service = PricingService(repo)
-    return await service.calculate_recharge_quote(payload.operator_code, payload.recharge_amount_bdt)
+    return await service.calculate_recharge_quote(payload.operator_code, payload.recharge_amount_bdt, phone=payload.phone)

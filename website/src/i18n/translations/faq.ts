@@ -50,7 +50,7 @@ export const faqTranslations = {
         id: "cashout-1",
         category: "ক্যাশ আউট ব্যালেন্স",
         q: "সিম ব্যালেন্স ক্যাশ আউট কীভাবে কাজ করে?",
-        a: "প্রথমে আপনার অপারেটর (GP, Robi বা Banglalink) ও ব্যালেন্সের পরিমাণ নির্বাচন করুন এবং আপনার পেআউট ওয়ালেট (bKash, Nagad বা ব্যাংক) নম্বর দিন। এরপর আপনার ফোন থেকে আমাদের নির্ধারিত নম্বরে অপারেটরের অফিশিয়াল USSD কোড বা অ্যাপের মাধ্যমে ব্যালেন্স পাঠান। প্রাপ্ত SMS বা TrxID প্রমাণ হিসেবে জমা দিলেই যাচাই শেষে টাকা আপনার ওয়ালেটে চলে আসবে।",
+        a: "প্রথমে আপনার অপারেটর (GP, Robi বা Banglalink) ও ব্যালেন্সের পরিমাণ নির্বাচন করুন এবং আপনার পেআউট ওয়ালেট (bKash, Nagad বা ব্যাংক) নম্বর দিন। এরপর নিরাপদ অপারেটর ভেরিফিকেশনের মাধ্যমে বা নির্ধারিত রিসিভার নম্বরে ব্যালেন্স ট্রান্সফার সম্পন্ন করুন। ট্রান্সফার সফলভাবে নিশ্চিত হলেই তাৎক্ষণিক ক্যাশ পেআউট আপনার ওয়ালেটে চলে যাবে।",
       },
       {
         id: "cashout-2",
@@ -74,7 +74,7 @@ export const faqTranslations = {
         id: "cashout-5",
         category: "ক্যাশ আউট ব্যালেন্স",
         q: "ক্যাশ আউটের সর্বনিম্ন সীমা কত?",
-        a: "FlexiTaka-তে প্রতি লেনদেনের সর্বনিম্ন পরিমাণ ৳৫০.০০।",
+        a: "FlexiTaka-তে প্রতি লেনদেনের সর্বনিম্ন পরিমাণ ৳১০.০০।",
       },
       {
         id: "cashout-6",
@@ -86,7 +86,7 @@ export const faqTranslations = {
         id: "cashout-7",
         category: "ক্যাশ আউট ব্যালেন্স",
         q: "সিম থেকে ব্যালেন্স কীভাবে ট্রান্সফার করব?",
-        a: "ব্যালেন্স ট্রান্সফার সম্পূর্ণভাবে আপনি নিজে আপনার মোবাইল হ্যান্ডসেট থেকে করবেন। অর্ডার প্লেস করার পর সিস্টেম আপনাকে একটি ভেরিফায়েড রিসিভিং নম্বর এবং অপারেটরের নির্দিষ্ট USSD ডায়াল কোড (যেমন GP-এর জন্য *121*1500#, Robi-এর জন্য *121*56#, Banglalink-এর জন্য *1000#) অথবা MyGP/MyRobi/MyBL নির্দেশিকা প্রদর্শন করবে।",
+        a: "আমাদের স্বয়ংক্রিয় অপারেটর সংযোগের মাধ্যমে একবারের OTP ভেরিফিকেশন দিয়ে আপনি সরাসরি ক্যাশ আউট সম্পন্ন করতে পারেন, অথবা অপারেটর চ্যানেলের মাধ্যমে ট্রান্সফার নিশ্চিত করতে পারেন। আমরা কখনোই আপনার সিম পিন বা অ্যাকাউন্ট পাসওয়ার্ড চাইব না।",
       },
       {
         id: "cashout-8",
@@ -122,7 +122,7 @@ export const faqTranslations = {
         id: "security-1",
         category: "নিরাপত্তা ও গোপনীয়তা",
         q: "FlexiTaka কি আমার সিম পিন বা পাসওয়ার্ড চাইবে?",
-        a: "কখনোই না! FlexiTaka একটি নন-কাস্টডিয়াল প্ল্যাটফর্ম। আমরা কখনই গ্রাহকের সিম পিন (SIM PIN), MyGP/MyRobi/MyBL পাসওয়ার্ড কিংবা টেলিকম SMS OTP চাই না। ব্যালেন্স পাঠানোর দায়িত্ব সম্পূর্ণভাবে গ্রাহকের নিজের নিয়ন্ত্রণে।",
+        a: "কখনো না। আমরা কখনো আপনার SIM PIN বা account password চাইব না। তবে আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে FlexiTaka একবারের operator verification OTP চাইতে পারে।",
       },
       {
         id: "security-2",
@@ -195,7 +195,7 @@ export const faqTranslations = {
         id: "cashout-1",
         category: "Cash Out Balance",
         q: "How does SIM balance cash out work?",
-        a: "Select your operator (GP, Robi, or Banglalink), enter the balance amount you wish to transfer, and provide your payout destination (bKash, Nagad, or Bank). After placing the order, you transfer the specified balance from your handset to our designated receiving number using your operator's standard USSD code or app. Once you submit the transfer reference or proof, our staff verifies the transfer and dispatches your payout.",
+        a: "Select your operator (GP, Robi, or Banglalink), enter the balance amount you wish to transfer, and provide your payout destination (bKash, Nagad, or Bank). Complete the balance transfer securely via supported operator API authentication or designated receiver verification. Once confirmed, your cash payout is dispatched immediately.",
       },
       {
         id: "cashout-2",
@@ -219,7 +219,7 @@ export const faqTranslations = {
         id: "cashout-5",
         category: "Cash Out Balance",
         q: "What is the minimum amount for Cash Out?",
-        a: "The minimum transaction amount supported on FlexiTaka is ৳50.00.",
+        a: "The minimum transaction amount supported on FlexiTaka is ৳10.00.",
       },
       {
         id: "cashout-6",
@@ -231,7 +231,7 @@ export const faqTranslations = {
         id: "cashout-7",
         category: "Cash Out Balance",
         q: "How do I transfer my SIM balance?",
-        a: "Transfers are executed directly by you from your own handset. After placing an order, our system assigns a specific verified receiving number and shows the exact official USSD dial code for your operator (e.g., *121*1500# for GP, *121*56# for Robi, *1000# for Banglalink) or instructions for transferring via MyGP, MyRobi, or MyBL apps.",
+        a: "You can complete cash out seamlessly via secure one-time operator verification OTP where supported, or confirm transfer through operator channels. We will never ask for your SIM PIN or account password.",
       },
       {
         id: "cashout-8",
@@ -267,7 +267,7 @@ export const faqTranslations = {
         id: "security-1",
         category: "Security & Privacy",
         q: "Does FlexiTaka ever ask for my SIM PIN or password?",
-        a: "NEVER. FlexiTaka adheres to strict Zero-Credential principles. We will never ask for your SIM PIN, MyGP/MyRobi/MyBL account passwords, or telecom SMS OTPs. All balance transfers are executed strictly by you via official operator channels.",
+        a: "NEVER. We will never ask for your SIM PIN or account password. An operator verification OTP may be requested when needed to securely authenticate your SIM account for supported operations.",
       },
       {
         id: "security-2",

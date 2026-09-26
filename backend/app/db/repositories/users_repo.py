@@ -25,6 +25,12 @@ class UsersRepository(BaseRepository):
     async def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
         return await self.insert_one(user_data)
 
+    async def update_user_profile(self, user_id: str, update_fields: Dict[str, Any]) -> bool:
+        return await self.update_one(
+            {"user_id": user_id},
+            {"$set": update_fields}
+        )
+
     # --- Guest Sessions ---
     async def create_guest_session(self, guest_data: Dict[str, Any]) -> Dict[str, Any]:
         doc = guest_data.copy()

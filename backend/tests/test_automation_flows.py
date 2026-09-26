@@ -332,3 +332,456 @@ async def test_scenario_f_receiving_sim_concurrency_reservation(clean_db: AsyncI
     # Third reservation: 50 BDT (5000 poisha) -> Exact remaining -> Should succeed
     res3 = await sims_repo.reserve_sim_balance("SIM-CONC-01", 5000)
     assert res3 is True
+
+
+@pytest.mark.asyncio
+async def test_operator_number_mismatch_rejection(client: AsyncClient):
+    """
+    Requirement 1: Selected operator must match detected operator.
+    GP + Robi -> REJECTED (OPERATOR_NUMBER_MISMATCH)
+    Robi + GP -> REJECTED
+    BL + GP -> REJECTED
+    """
+    from app.modules.operators.resolver import validate_operator_match
+    from app.core.exceptions import ValidationException
+
+    # 1. Direct validation helper check
+    with pytest.raises(ValidationException) as exc1:
+        validate_operator_match("GP", "01812345678")
+    assert exc1.value.code == "OPERATOR_NUMBER_MISMATCH"
+
+    with pytest.raises(ValidationException) as exc2:
+        validate_operator_match("ROBI", "01712345678")
+    assert exc2.value.code == "OPERATOR_NUMBER_MISMATCH"
+
+    with pytest.raises(ValidationException) as exc3:
+        validate_operator_match("BANGLALINK", "01712345678")
+    assert exc3.value.code == "OPERATOR_NUMBER_MISMATCH"
+
+    # Matching pairs succeed
+    assert validate_operator_match("GP", "01712345678") == "GP"
+    assert validate_operator_match("ROBI", "01812345678") == "ROBI"
+    assert validate_operator_match("BANGLALINK", "01912345678") == "BANGLALINK"
+
+    # 2. API Level rejection via Pricing Cashout Quote
+    resp = await client.post("/api/v1/pricing/cashout-quote", json={
+        "operator_code": "GP",
+        "amount_bdt": "100.00",
+        "phone": "01812345678"  # Robi number with GP operator
+    })
+    assert resp.status_code == 422
+    data = resp.json()
+    assert data["error"]["code"] == "OPERATOR_NUMBER_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_receiving_sim_operator_mismatch_audit_and_selection(clean_db: AsyncIOMotorDatabase):
+    """
+    Requirement 2: Receiving SIM operator label & phone prefix mismatch must be blocked.
+    Mismatched SIMs must be deactivated by integrity audit.
+    """
+    db = clean_db
+    sims_repo = ReceivingSimsRepository(db)
+
+    # Insert a SIM labeled BANGLALINK but with GP prefix (017)
+    await db["receiving_sims"].insert_one({
+        "receiving_sim_id": "SIM-MISMATCH-01",
+        "operator_code": "BANGLALINK",
+        "mobile_number": "01712000001",
+        "status": "ACTIVE",
+        "available_balance": 100000,
+        "reserved_balance": 0,
+        "current_daily_usage": 0,
+        "cooldown_until": 0,
+        "created_at": "2026-09-25T00:00:00Z",
+        "updated_at": "2026-09-25T00:00:00Z"
+    })
+
+    # Run integrity audit
+    audit_res = await sims_repo.audit_sim_integrity()
+    assert audit_res["invalid_mismatched_sims"] >= 1
+
+    # Verify status changed to BLOCKED with invalid_mismatch flag
+    doc = await db["receiving_sims"].find_one({"receiving_sim_id": "SIM-MISMATCH-01"})
+    assert doc["status"] == "BLOCKED"
+    assert doc["invalid_mismatch"] is True
+
+    # select_best_sim must NOT return this mismatched SIM
+    best = await sims_repo.select_best_sim(operator_code="BANGLALINK", amount_poisha=5000)
+    assert best is None
+
+
+@pytest.mark.asyncio
+async def test_authoritative_prefix_registry_and_admin_crud(client: AsyncClient, clean_db: AsyncIOMotorDatabase, staff_headers):
+    """
+    Requirement 3 & 4: Central 01X prefix registry with Admin CRUD and caching.
+    """
+    from app.db.repositories.operator_prefix_repo import OperatorPrefixRepository
+    from app.modules.operators.resolver import resolve_operator, normalize_msisdn
+    from app.core.exceptions import ValidationException
+    from app.core.constants import AdminRole
+
+    admin_hdr = staff_headers("ADM-TEST", AdminRole.SUPER_ADMIN)
+
+    repo = OperatorPrefixRepository(clean_db)
+    await repo.seed_default_prefixes()
+    await repo.load_cache()
+
+    # Normal resolution
+    assert resolve_operator("01712345678") == "GP"
+    assert resolve_operator("01312345678") == "GP"
+    assert resolve_operator("01812345678") == "ROBI"
+    assert resolve_operator("01612345678") == "ROBI"
+    assert resolve_operator("01912345678") == "BANGLALINK"
+    assert resolve_operator("01412345678") == "BANGLALINK"
+
+    # Unknown prefix
+    with pytest.raises(ValidationException) as exc:
+        resolve_operator("01112345678")
+    assert exc.value.code == "UNSUPPORTED_OPERATOR_PREFIX"
+
+    # Admin CRUD via API
+    # 1. List prefixes
+    list_res = await client.get("/api/v1/admin/operator-prefixes", headers=admin_hdr)
+    assert list_res.status_code == 200
+    prefixes = list_res.json()["prefixes"]
+    assert len(prefixes) >= 6
+
+    # 2. Add new prefix 015 -> TELETALK
+    add_res = await client.post("/api/v1/admin/operator-prefixes", json={
+        "prefix": "015",
+        "operator_code": "TELETALK",
+        "notes": "State-owned Teletalk operator"
+    }, headers=admin_hdr)
+    assert add_res.status_code in (200, 201)
+
+    # Reload cache and verify resolution
+    await repo.load_cache()
+    assert resolve_operator("01512345678") == "TELETALK"
+
+    # 3. Duplicate prefix rejection
+    dup_res = await client.post("/api/v1/admin/operator-prefixes", json={
+        "prefix": "015",
+        "operator_code": "TELETALK"
+    }, headers=admin_hdr)
+    assert dup_res.status_code == 409
+
+    # 4. Toggle active status
+    put_res = await client.put("/api/v1/admin/operator-prefixes/015", json={
+        "is_active": False
+    }, headers=admin_hdr)
+    assert put_res.status_code == 200
+    await repo.load_cache()
+
+    # Once inactive, resolution fails with UNSUPPORTED_OPERATOR_PREFIX
+    with pytest.raises(ValidationException) as exc_inactive:
+        resolve_operator("01512345678")
+    assert exc_inactive.value.code == "UNSUPPORTED_OPERATOR_PREFIX"
+
+
+@pytest.mark.asyncio
+async def test_mobile_number_length_11_digits_enforcement(client: AsyncClient):
+    """
+    Requirement 5: Phone number must be exactly 11 digits after normalization.
+    10 digits -> REJECTED
+    12 digits -> REJECTED
+    Letters/symbols -> REJECTED
+    """
+    from app.modules.operators.resolver import normalize_msisdn
+    from app.core.exceptions import ValidationException
+
+    # 11 digits valid
+    assert normalize_msisdn("01712345678") == "01712345678"
+    assert normalize_msisdn("+8801712345678") == "01712345678"
+    assert normalize_msisdn("8801712345678") == "01712345678"
+
+    # 10 digits -> Rejected
+    with pytest.raises(ValidationException) as exc10:
+        normalize_msisdn("0171234567")
+    assert exc10.value.code == "INVALID_MOBILE_NUMBER"
+
+    # 12 digits -> Rejected
+    with pytest.raises(ValidationException) as exc12:
+        normalize_msisdn("017123456789")
+    assert exc12.value.code == "INVALID_MOBILE_NUMBER"
+
+    # Letters -> Rejected
+    with pytest.raises(ValidationException) as exc_alpha:
+        normalize_msisdn("0171234567a")
+    assert exc_alpha.value.code == "INVALID_MOBILE_NUMBER"
+
+
+@pytest.mark.asyncio
+async def test_amount_limits_10_to_50000_bdt(client: AsyncClient):
+    """
+    Requirement 6: Minimum amount is 10 BDT, maximum is 50,000 BDT.
+    9 BDT -> REJECTED (422)
+    10 BDT -> ACCEPTED (200)
+    50 BDT -> ACCEPTED (200)
+    50,000 BDT -> ACCEPTED (200)
+    50,001 BDT -> REJECTED (422)
+    """
+    # 9 BDT -> Below minimum
+    res_9 = await client.post("/api/v1/pricing/cashout-quote", json={
+        "operator_code": "GP",
+        "amount_bdt": "9.00"
+    })
+    assert res_9.status_code == 422
+
+    # 10 BDT -> Minimum accepted
+    res_10 = await client.post("/api/v1/pricing/cashout-quote", json={
+        "operator_code": "GP",
+        "amount_bdt": "10.00"
+    })
+    assert res_10.status_code == 200
+    assert float(res_10.json()["source_amount_bdt"]) == 10.0
+
+    # 50,000 BDT -> Maximum accepted
+    res_50k = await client.post("/api/v1/pricing/cashout-quote", json={
+        "operator_code": "GP",
+        "amount_bdt": "50000.00"
+    })
+    assert res_50k.status_code == 200
+
+    # 50,001 BDT -> Above maximum
+    res_50001 = await client.post("/api/v1/pricing/cashout-quote", json={
+        "operator_code": "GP",
+        "amount_bdt": "50001.00"
+    })
+    assert res_50001.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_cashout_live_balance_check_prevents_transfer(client: AsyncClient, clean_db: AsyncIOMotorDatabase):
+    """
+    Requirement 7: Live balance must be checked before transfer.
+    If balance (9 BDT) < requested amount (50 BDT) -> STOP with INSUFFICIENT_BALANCE!
+    Do NOT create transfer chunks or execute.
+    """
+    db = clean_db
+    phone = "01722334455"
+
+    # Set up session with live balance = 9 BDT
+    await db["operator_sessions"].insert_one({
+        "msisdn": phone,
+        "operator_code": "GP",
+        "access_token": "mock-token",
+        "refresh_token": "mock-refresh",
+        "balance_bdt": 9.0,
+        "balance_poisha": 900,
+        "expire_at": int(time.time()) + 86400,
+        "is_active": True,
+        "created_at": "2026-09-25T00:00:00Z",
+        "updated_at": "2026-09-25T00:00:00Z"
+    })
+
+    # Seed receiving SIM
+    await db["receiving_sims"].insert_one({
+        "receiving_sim_id": "SIM-GP-BAL-01",
+        "operator_code": "GP",
+        "mobile_number": "01711000099",
+        "status": "ACTIVE",
+        "available_balance": 500000,
+        "reserved_balance": 0,
+        "current_daily_usage": 0,
+        "cooldown_until": 0,
+        "created_at": "2026-09-25T00:00:00Z",
+        "updated_at": "2026-09-25T00:00:00Z"
+    })
+
+    # Attempt cash out order for 50 BDT with balance 9 BDT
+    order_req = await client.post(
+        "/api/v1/cashout/orders",
+        json={
+            "operator_code": "GP",
+            "source_mobile_number": phone,
+            "amount_bdt": "50.00",
+            "payout_method": "BKASH",
+            "payout_account": "01811223344"
+        },
+        headers={"X-Guest-Session-ID": "gst_bal_test"}
+    )
+    assert order_req.status_code == 422
+    err_data = order_req.json()
+    assert err_data["error"]["code"] == "INSUFFICIENT_BALANCE"
+
+    # Verify zero chunks or ledger rows created
+    ledger_count = await db["transfer_ledger"].count_documents({"source_msisdn": phone})
+    assert ledger_count == 0
+
+
+def test_chunking_exact_calculations():
+    """
+    Requirement 8: Chunking must never exceed remaining order amount.
+    50 BDT -> [50] (never 100!)
+    100 BDT -> [100]
+    101 BDT -> [100, 1]
+    250 BDT -> [100, 100, 50]
+    350 BDT -> [100, 100, 100, 50]
+    """
+    # 50 BDT
+    chunks_50 = TransferEngine.calculate_chunks(50, 100)
+    assert chunks_50 == [50]
+
+    # 100 BDT
+    chunks_100 = TransferEngine.calculate_chunks(100, 100)
+    assert chunks_100 == [100]
+
+    # 101 BDT
+    chunks_101 = TransferEngine.calculate_chunks(101, 100)
+    assert chunks_101 == [100, 1]
+
+    # 250 BDT
+    chunks_250 = TransferEngine.calculate_chunks(250, 100)
+    assert chunks_250 == [100, 100, 50]
+
+    # 350 BDT
+    chunks_350 = TransferEngine.calculate_chunks(350, 100)
+    assert chunks_350 == [100, 100, 100, 50]
+
+
+@pytest.mark.asyncio
+async def test_payment_accounts_db_endpoint(client: AsyncClient, clean_db: AsyncIOMotorDatabase):
+    """
+    Test Requirement 7: Authoritative DB-driven Payment Accounts.
+    GET /api/v1/payments/accounts returns authoritative accounts for bKash, Nagad, Rocket, Bangla QR.
+    """
+    res = await client.get("/api/v1/payments/accounts")
+    assert res.status_code == 200
+    accounts = res.json()
+    assert len(accounts) >= 4
+    methods = [acc["method"] for acc in accounts]
+    assert "BKASH" in methods
+    assert "NAGAD" in methods
+    assert "ROCKET" in methods
+    assert "BANGLA_QR" in methods
+    for acc in accounts:
+        assert acc["is_active"] is True
+        assert "account_number" in acc
+        assert "display_number" in acc
+
+
+@pytest.mark.asyncio
+async def test_recharge_orders_no_otp_for_all_operators(client: AsyncClient, clean_db: AsyncIOMotorDatabase):
+    """
+    Test Requirement 1 & 13: Recharge MUST NOT require operator OTP or ZendSMS.
+    Direct order creation succeeds for GP, Robi, and Banglalink.
+    """
+    operators_data = [
+        ("GP", "01712345678"),
+        ("ROBI", "01812345678"),
+        ("BANGLALINK", "01912345678")
+    ]
+    for op, phone in operators_data:
+        res = await client.post(
+            "/api/v1/recharge/orders",
+            json={
+                "operator_code": op,
+                "recharge_mobile_number": phone,
+                "recharge_amount_bdt": "100.00"
+            },
+            headers={"X-Guest-Session-ID": f"gst_{op.lower()}_test"}
+        )
+        assert res.status_code == 201, f"Failed for operator {op}: {res.text}"
+        data = res.json()
+        assert data["order_id"].startswith("FT-")
+        assert data["operator_code"] == op
+        assert data["recharge_mobile_number"] == phone
+        assert data["status"] == "PAYMENT_PENDING"
+        assert "payment_account_number" in data
+
+
+@pytest.mark.asyncio
+async def test_recharge_operator_mismatch_and_digit_validation(client: AsyncClient, clean_db: AsyncIOMotorDatabase):
+    """
+    Test Requirement 4 & 5:
+    - Never allow GP + Robi number, etc.
+    - Reject 12-digit or invalid numbers.
+    """
+    # 1. Operator mismatch: GP operator code with Robi number (018...)
+    res_mismatch = await client.post(
+        "/api/v1/recharge/orders",
+        json={
+            "operator_code": "GP",
+            "recharge_mobile_number": "01812345678",
+            "recharge_amount_bdt": "100.00"
+        },
+        headers={"X-Guest-Session-ID": "gst_mismatch_test"}
+    )
+    assert res_mismatch.status_code == 422
+    assert "OPERATOR_NUMBER_MISMATCH" in res_mismatch.text
+
+    # 2. 12-digit number rejected
+    res_12_digits = await client.post(
+        "/api/v1/recharge/orders",
+        json={
+            "operator_code": "GP",
+            "recharge_mobile_number": "017123456789",  # 12 digits
+            "recharge_amount_bdt": "100.00"
+        },
+        headers={"X-Guest-Session-ID": "gst_12_test"}
+    )
+    assert res_12_digits.status_code == 422
+    assert "INVALID_MOBILE_NUMBER" in res_12_digits.text
+
+
+@pytest.mark.asyncio
+async def test_recharge_amount_limits(client: AsyncClient, clean_db: AsyncIOMotorDatabase):
+    """
+    Test Requirement 6:
+    Amount 9 -> rejected (< 10)
+    Amount 10 -> accepted
+    Amount 50,000 -> accepted
+    Amount 50,001 -> rejected (> 50,000)
+    """
+    # 1. Amount 9 rejected
+    res_9 = await client.post(
+        "/api/v1/recharge/orders",
+        json={
+            "operator_code": "GP",
+            "recharge_mobile_number": "01712345678",
+            "recharge_amount_bdt": "9.00"
+        },
+        headers={"X-Guest-Session-ID": "gst_amt_9"}
+    )
+    assert res_9.status_code == 422
+    assert "AMOUNT_OUT_OF_RANGE" in res_9.text
+
+    # 2. Amount 10 accepted
+    res_10 = await client.post(
+        "/api/v1/recharge/orders",
+        json={
+            "operator_code": "GP",
+            "recharge_mobile_number": "01712345678",
+            "recharge_amount_bdt": "10.00"
+        },
+        headers={"X-Guest-Session-ID": "gst_amt_10"}
+    )
+    assert res_10.status_code == 201
+
+    # 3. Amount 50000 accepted
+    res_50000 = await client.post(
+        "/api/v1/recharge/orders",
+        json={
+            "operator_code": "GP",
+            "recharge_mobile_number": "01712345678",
+            "recharge_amount_bdt": "50000.00"
+        },
+        headers={"X-Guest-Session-ID": "gst_amt_50k"}
+    )
+    assert res_50000.status_code == 201
+
+    # 4. Amount 50001 rejected
+    res_50001 = await client.post(
+        "/api/v1/recharge/orders",
+        json={
+            "operator_code": "GP",
+            "recharge_mobile_number": "01712345678",
+            "recharge_amount_bdt": "50001.00"
+        },
+        headers={"X-Guest-Session-ID": "gst_amt_50001"}
+    )
+    assert res_50001.status_code == 422
+    assert "AMOUNT_OUT_OF_RANGE" in res_50001.text
+
+

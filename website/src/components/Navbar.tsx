@@ -8,6 +8,8 @@ import { api, getStoredAuthToken, getStoredGuestSessionId } from "@/lib/api";
 import { ArrowRight, Menu, User, X } from "lucide-react";
 import { useLanguage } from "@/i18n/LanguageContext";
 
+import LanguageSwitcher from "./LanguageSwitcher";
+
 export default function Navbar() {
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
@@ -101,7 +103,7 @@ export default function Navbar() {
         </nav>
 
         {/* Actions & Session Indicator */}
-        <div className="header-actions-group">
+        <div className="header-actions-group" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <Link
             href="/app"
             className="btn btn-outline btn-sm header-btn-account"
@@ -260,6 +262,14 @@ export default function Navbar() {
                       : (isBn ? `গেস্ট: ${guestId ? guestId.substring(0, 6) : "সক্রিয়"}` : `Guest: ${guestId ? guestId.substring(0, 6) : "Active"}`)}
                   </span>
                 </Link>
+              </div>
+
+              {/* Language Switcher in Mobile Drawer */}
+              <div className="mobile-drawer-section" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "12px", borderTop: "1px solid var(--border-light)" }}>
+                <span style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", fontWeight: "500" }}>
+                  {isBn ? "ভাষা পরিবর্তন করুন" : "Language"}
+                </span>
+                <LanguageSwitcher style={{ marginTop: 0 }} />
               </div>
             </div>
           </aside>

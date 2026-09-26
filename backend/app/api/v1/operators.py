@@ -57,6 +57,10 @@ async def request_operator_otp(
     Step 1 of Automated Operator Authentication (OTP #1).
     Determines operator from mobile number and requests real operator login OTP.
     """
+    if payload.operator_code:
+        from app.modules.operators.resolver import validate_operator_match
+        validate_operator_match(payload.operator_code, payload.phone)
+
     phone = normalize_msisdn(payload.phone)
     operator_code = resolve_operator_from_msisdn(phone)
 
@@ -90,6 +94,10 @@ async def verify_operator_otp(
     automatically logs in / creates the FlexiTaka user account for that verified phone,
     fetches live balance, and returns a secure FlexiTaka JWT (never the operator token).
     """
+    if payload.operator_code:
+        from app.modules.operators.resolver import validate_operator_match
+        validate_operator_match(payload.operator_code, payload.phone)
+
     phone = normalize_msisdn(payload.phone)
     operator_code = resolve_operator_from_msisdn(phone)
     op_str = operator_code.value if hasattr(operator_code, "value") else str(operator_code)

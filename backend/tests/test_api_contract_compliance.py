@@ -20,9 +20,12 @@ async def test_full_api_contract_compliance(client: AsyncClient, clean_db):
         "label": "GP Primary Receiving SIM #1",
         "status": "ACTIVE",
         "available_balance": 5000000,
+        "reserved_balance": 0,
         "daily_limit": 10000000,
         "monthly_limit": 50000000,
-        "current_usage": 0
+        "current_usage": 0,
+        "current_daily_usage": 0,
+        "cooldown_until": 0
     })
 
     # 1. Health Checks

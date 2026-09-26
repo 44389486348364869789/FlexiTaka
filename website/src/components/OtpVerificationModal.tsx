@@ -25,7 +25,7 @@ export default function OtpVerificationModal({
   referenceId,
   expectedLength,
 }: OtpVerificationModalProps) {
-  const { isBn, toBnDigits } = useLanguage();
+  const { isBn, toBnDigits, t } = useLanguage();
   const [mounted, setMounted] = useState(false);
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
@@ -397,9 +397,12 @@ export default function OtpVerificationModal({
             textAlign: "center",
           }}
         >
-          {isBn
-            ? "নিরাপত্তা তথ্য: FlexiTaka কখনও আপনার সিম পিন বা টেলিকম পাসওয়ার্ড চাইবে না।"
-            : "Security: FlexiTaka will NEVER ask for your SIM PIN or telecom passwords."}
+          {t(
+            "common.security.operatorOtpShortNotice",
+            isBn
+              ? "নিরাপত্তা তথ্য: প্রয়োজনে আপনার SIM অ্যাকাউন্ট যাচাই করতে operator verification OTP চাওয়া হতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।"
+              : "Security: An operator verification OTP may be requested when needed to authenticate your SIM account. We will never ask for your SIM PIN or account password."
+          )}
         </div>
       </div>
     </div>,

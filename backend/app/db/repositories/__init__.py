@@ -12,6 +12,8 @@ from app.db.repositories.notifications_repo import NotificationsRepository
 from app.db.repositories.users_repo import UsersRepository
 from app.db.repositories.audit_repo import AuditRepository
 from app.db.repositories.settings_repo import SettingsRepository
+from app.db.repositories.payment_accounts_repo import PaymentAccountsRepository
+from app.db.repositories.linked_sims_repo import LinkedSimsRepository
 
 __all__ = [
     "OrdersRepository",
@@ -28,4 +30,7 @@ __all__ = [
     "UsersRepository",
     "AuditRepository",
     "SettingsRepository",
+    "PaymentAccountsRepository",
+    "LinkedSimsRepository",
 ]
+

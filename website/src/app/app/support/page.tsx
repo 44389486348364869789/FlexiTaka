@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { SupportTicket } from "@/lib/types";
+import ConfirmModal, { useConfirmModal } from "@/components/ConfirmModal";
 import FlexiLoading from "@/components/FlexiLoading";
 import { useLanguage } from "@/i18n/LanguageContext";
 import {
@@ -18,6 +19,7 @@ function AppSupportContent() {
   const { lang, tr, toBnDigits } = useLanguage();
   const searchParams = useSearchParams();
   const prefillOrderId = searchParams.get("order_id") || "";
+  const { confirmModalProps, openAlert } = useConfirmModal();
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +75,11 @@ function AppSupportContent() {
       await loadTickets();
       setSelectedTicket(created);
     } catch (err: any) {
-      alert(err.message || (lang === "bn" ? "সাপোর্ট টিকিট তৈরিতে ব্যর্থ হয়েছে" : "Failed to create support ticket"));
+      await openAlert({
+        title: lang === "bn" ? "ত্রুটি" : "Error",
+        message: err.message || (lang === "bn" ? "সাপোর্ট টিকিট তৈরিতে ব্যর্থ হয়েছে" : "Failed to create support ticket"),
+        variant: "danger",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -90,7 +96,11 @@ function AppSupportContent() {
       setReplyMessage("");
       await loadTickets();
     } catch (err: any) {
-      alert(err.message || (lang === "bn" ? "বার্তা পাঠাতে ব্যর্থ হয়েছে" : "Failed to send message reply"));
+      await openAlert({
+        title: lang === "bn" ? "ত্রুটি" : "Error",
+        message: err.message || (lang === "bn" ? "বার্তা পাঠাতে ব্যর্থ হয়েছে" : "Failed to send message reply"),
+        variant: "danger",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -374,6 +384,9 @@ function AppSupportContent() {
           </div>
         </div>
       )}
+
+      {/* Reusable Confirm / Alert Modal */}
+      <ConfirmModal {...confirmModalProps} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ Handles quote confirmation, order creation, automated chunk transfer execution,
 live transfer progress tracking, and fallback confirmation.
 """
 
+from decimal import Decimal
 from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, File, Header, UploadFile, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -18,8 +19,9 @@ from app.db.repositories.proofs_repo import ProofsRepository
 from app.db.repositories.recharge_repo import RechargeRepository
 from app.db.repositories.sims_repo import ReceivingSimsRepository
 from app.modules.cashout.schemas import (
-    CashOutOrderResponse, ConfirmTransferRequest, CreateCashOutOrderRequest,
-    ExecuteTransferStepRequest
+    CashOutOrderResponse, CashOutPrecheckRequest, CashOutPrecheckResponse,
+    ConfirmTransferRequest, ContinueRemainingRequest, CreateCashOutOrderRequest,
+    ExecuteTransferStepRequest, VerifyNextOtpRequest
 )
 from app.modules.cashout.service import CashOutService
 from app.modules.orders.schemas import OrderDetailResponse
@@ -29,6 +31,30 @@ from app.modules.proofs.schemas import ProofUploadResponse
 from app.modules.proofs.service import ProofsService
 
 router = APIRouter(prefix="/cashout", tags=["Cash Out"])
+
+
+@router.post("/precheck", response_model=CashOutPrecheckResponse)
+async def precheck_cashout(
+    payload: CashOutPrecheckRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Authoritative Quota Precheck:
+    Evaluates max executable amount against live balance, per-transfer limits,
+    daily/monthly quota, remaining transfer count, and cooldowns.
+    """
+    pricing_repo = PricingRepository(db)
+    pricing_service = PricingService(pricing_repo)
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    sims_repo = ReceivingSimsRepository(db)
+
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
+    return await service.precheck_cashout(
+        operator_code=payload.operator_code.value if hasattr(payload.operator_code, "value") else str(payload.operator_code),
+        source_mobile_number=payload.source_mobile_number,
+        amount_bdt=payload.amount_bdt
+    )
 
 
 @router.post("/orders", response_model=CashOutOrderResponse, status_code=status.HTTP_201_CREATED)
@@ -68,7 +94,7 @@ async def create_cashout_order(
     if idempotency_key:
         cacheable = result.copy()
         for k, v in cacheable.items():
-            if hasattr(v, "__str__") and not isinstance(v, (int, bool, str, type(None))):
+            if isinstance(v, Decimal):
                 cacheable[k] = str(v)
         await save_cached_idempotency(idempotency_key, 201, cacheable)
 
@@ -111,6 +137,102 @@ async def execute_transfer_step(
     service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
     pin = payload.pin if payload else None
     return await service.execute_transfer_step(order_id, pin=pin)
+
+
+@router.post("/orders/{order_id}/continue-remaining")
+async def continue_remaining(
+    order_id: str,
+    payload: Optional[ContinueRemainingRequest] = None,
+    tracking_token: Optional[str] = None,
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    guest_session_id: Optional[str] = Depends(get_guest_session_id_optional),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Continues execution ONLY from unfinished chunks.
+    Never reruns already successful chunks.
+    Re-checks live balance, session, quota, count, cooldown, and PIN.
+    """
+    pricing_repo = PricingRepository(db)
+    pricing_service = PricingService(pricing_repo)
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    sims_repo = ReceivingSimsRepository(db)
+
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
+    user_id = user["sub"] if user else None
+    pin = payload.pin if payload else None
+    otp = payload.otp if payload else None
+
+    return await service.continue_remaining(
+        order_id=order_id,
+        pin=pin,
+        otp=otp,
+        user_id=user_id,
+        guest_session_id=guest_session_id,
+        tracking_token=tracking_token
+    )
+
+
+@router.post("/orders/{order_id}/cancel-remaining")
+async def cancel_remaining(
+    order_id: str,
+    tracking_token: Optional[str] = None,
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    guest_session_id: Optional[str] = Depends(get_guest_session_id_optional),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Cancels uncompleted chunks and recalculates payout authoritatively
+    based ONLY on confirmed received amount. Never pays out for unconfirmed amounts.
+    """
+    pricing_repo = PricingRepository(db)
+    pricing_service = PricingService(pricing_repo)
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    sims_repo = ReceivingSimsRepository(db)
+
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
+    user_id = user["sub"] if user else None
+    actor_id = user_id or (guest_session_id or "customer")
+
+    return await service.cancel_remaining(
+        order_id=order_id,
+        actor_id=actor_id,
+        user_id=user_id,
+        guest_session_id=guest_session_id,
+        tracking_token=tracking_token
+    )
+
+
+@router.post("/orders/{order_id}/verify-next-otp")
+async def verify_next_chunk_otp(
+    order_id: str,
+    payload: VerifyNextOtpRequest,
+    tracking_token: Optional[str] = None,
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    guest_session_id: Optional[str] = Depends(get_guest_session_id_optional),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Verifies one-time password for the next transfer chunk (sequential OTP_PER_TRANSFER).
+    """
+    pricing_repo = PricingRepository(db)
+    pricing_service = PricingService(pricing_repo)
+    orders_repo = OrdersRepository(db)
+    cashout_repo = CashOutRepository(db)
+    sims_repo = ReceivingSimsRepository(db)
+
+    service = CashOutService(orders_repo, cashout_repo, sims_repo, pricing_service, db=db)
+    user_id = user["sub"] if user else None
+
+    return await service.verify_next_chunk_otp(
+        order_id=order_id,
+        otp=payload.otp,
+        user_id=user_id,
+        guest_session_id=guest_session_id,
+        tracking_token=tracking_token
+    )
 
 
 @router.get("/orders/{order_id}", response_model=OrderDetailResponse)

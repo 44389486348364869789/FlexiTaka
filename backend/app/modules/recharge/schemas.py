@@ -26,5 +26,8 @@ class RechargeOrderResponse(BaseModel):
     discount_amount_poisha: int
     customer_pay_amount_bdt: Decimal
     customer_pay_amount_poisha: int
+    payment_account_number: Optional[str] = None
+    payment_display_number: Optional[str] = None
     tracking_token: Optional[str] = None
     created_at: str
+

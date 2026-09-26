@@ -11,6 +11,7 @@ from app.core.constants import OperatorCode
 class CashOutQuoteRequest(BaseModel):
     operator_code: OperatorCode
     amount_bdt: Decimal = Field(..., gt=0, description="Amount in BDT to cash out from SIM")
+    phone: Optional[str] = Field(None, description="Optional mobile number to pre-validate operator prefix")
 
 
 class CashOutQuoteResponse(BaseModel):
@@ -29,6 +30,7 @@ class CashOutQuoteResponse(BaseModel):
 class RechargeQuoteRequest(BaseModel):
     operator_code: OperatorCode
     recharge_amount_bdt: Decimal = Field(..., gt=0, description="Target recharge amount in BDT")
+    phone: Optional[str] = Field(None, description="Optional target mobile number to pre-validate operator prefix")
 
 
 class RechargeQuoteResponse(BaseModel):

@@ -68,13 +68,20 @@ async def test_recharge_pricing_examples(client: AsyncClient, clean_db):
 
 @pytest.mark.asyncio
 async def test_pricing_out_of_range_rejected(client: AsyncClient, clean_db):
-    # Too low (< 50)
+    # Too low (< 10)
     res_low = await client.post("/api/v1/pricing/cashout-quote", json={
         "operator_code": "GP",
-        "amount_bdt": "20.00"
+        "amount_bdt": "9.00"
     })
     assert res_low.status_code == 422
     assert res_low.json()["error"]["code"] == "AMOUNT_OUT_OF_RANGE"
+
+    # Exactly min (10.00) -> OK
+    res_min = await client.post("/api/v1/pricing/cashout-quote", json={
+        "operator_code": "GP",
+        "amount_bdt": "10.00"
+    })
+    assert res_min.status_code == 200
 
     # Too high (> 50,000)
     res_high = await client.post("/api/v1/pricing/recharge-quote", json={

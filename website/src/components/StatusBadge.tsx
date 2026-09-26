@@ -21,6 +21,8 @@ const STATUS_MAP: { [key: string]: { bn: string; en: string } } = {
   PAYOUT_PROCESSING: { bn: "পেআউট প্রক্রিয়াধীন", en: "Payout Processing" },
   RECHARGE_PROCESSING: { bn: "রিচার্জ প্রক্রিয়াধীন", en: "Recharge Processing" },
   PAYMENT_VERIFIED: { bn: "পেমেন্ট যাচাই হয়েছে", en: "Payment Verified" },
+  WAITING_FOR_SIM: { bn: "রিচার্জ লাইন অপেক্ষমাণ", en: "Waiting for Line" },
+  WAITING_FOR_COOLDOWN: { bn: "কুলডাউন অপেক্ষমাণ", en: "Cooldown" },
   REJECTED: { bn: "প্রত্যাখ্যাত", en: "Rejected" },
   CANCELLED: { bn: "বাতিল", en: "Cancelled" },
   PAYMENT_FAILED: { bn: "পেমেন্ট ব্যর্থ", en: "Payment Failed" },

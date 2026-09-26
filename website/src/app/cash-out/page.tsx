@@ -75,8 +75,8 @@ export default function CashOutLandingPage() {
                   </h4>
                   <p style={{ color: "var(--text-secondary)", fontSize: "0.875rem", lineHeight: 1.4, margin: 0 }}>
                     {isBn
-                      ? "কখনোই আপনার সিম পিন বা পাসওয়ার্ড শেয়ার করতে হবে না। লেনদেন সম্পূর্ণ আপনার ফোন থেকে সম্পন্ন করুন।"
-                      : "You never share your SIM PIN or telecom credentials. Transfers are authorized strictly from your own handset."}
+                      ? "আপনার SIM অ্যাকাউন্ট নিরাপদভাবে যাচাই করতে প্রয়োজনে FlexiTaka একবারের operator verification OTP চাইতে পারে। আমরা কখনো আপনার SIM PIN বা account password চাইব না।"
+                      : "FlexiTaka may request a one-time operator verification OTP when required to securely authenticate your SIM account. We will never ask for your SIM PIN or account password."}
                   </p>
                 </div>
               </div>
@@ -102,8 +102,8 @@ export default function CashOutLandingPage() {
               </div>
               <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: 0 }}>
                 {isBn
-                  ? "প্রতি অর্ডারে সর্বনিম্ন ৳৫০.০০ থেকে সর্বোচ্চ ৳৫০,০০০.০০ পর্যন্ত প্রযোজ্য।"
-                  : "Orders are supported from a minimum of ৳50.00 up to ৳50,000.00 per transaction."}
+                  ? "প্রতি অর্ডারে সর্বনিম্ন ৳১০.০০ থেকে সর্বোচ্চ ৳৫০,০০০.০০ পর্যন্ত প্রযোজ্য।"
+                  : "Orders are supported from a minimum of ৳10.00 up to ৳50,000.00 per transaction."}
               </p>
             </div>
           </div>

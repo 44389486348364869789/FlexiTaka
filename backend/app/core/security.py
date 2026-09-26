@@ -52,9 +52,9 @@ def verify_tracking_token(order_id: str, guest_session_id: str, token: str) -> b
 
 def generate_public_id(prefix: str) -> str:
     """Generate high-entropy human-readable public IDs (e.g. FT-108249)."""
-    # Timestamp suffix + 4 hex chars for uniqueness
-    suffix = f"{int(time.time()) % 100000:05d}{secrets.randbelow(1000):03d}"
-    return f"{prefix}-{suffix}"
+    ts = int(time.time() * 1000) % 100000
+    rand = secrets.randbelow(900000) + 100000
+    return f"{prefix}-{ts}{rand}"
 
 
 def generate_order_id() -> str:
@@ -107,3 +107,46 @@ def generate_inventory_id() -> str:
 
 def generate_rule_id() -> str:
     return generate_public_id("RULE")
+
+
+# --- Transfer PIN Cryptographic Encryption at Rest ---
+import base64
+from cryptography.fernet import Fernet
+
+
+def _get_fernet() -> Fernet:
+    """Derives a deterministic 32-byte Fernet key from the application secret."""
+    key_material = hashlib.sha256(f"flexitaka-transfer-pin-encryption:{settings.JWT_SECRET}".encode()).digest()
+    urlsafe_key = base64.urlsafe_b64encode(key_material)
+    return Fernet(urlsafe_key)
+
+
+def encrypt_pin(plain_pin: str) -> str:
+    """Encrypts a plaintext PIN at rest using AES-128-CBC + HMAC-SHA256 authenticated encryption."""
+    if not plain_pin:
+        return ""
+    fernet = _get_fernet()
+    return fernet.encrypt(str(plain_pin).strip().encode("utf-8")).decode("utf-8")
+
+
+def decrypt_pin(encrypted_pin: Optional[str]) -> Optional[str]:
+    """Decrypts an encrypted transfer PIN. Returns None if decryption fails or token is empty."""
+    if not encrypted_pin:
+        return None
+    try:
+        fernet = _get_fernet()
+        return fernet.decrypt(str(encrypted_pin).strip().encode("utf-8")).decode("utf-8")
+    except Exception:
+        return None
+
+
+def derive_default_pin(msisdn: str) -> str:
+    """
+    Business rule: New Transfer PIN = last 4 digits of SIM number.
+    Ensures 4 numeric digits.
+    """
+    digits = "".join(c for c in str(msisdn) if c.isdigit())
+    if len(digits) >= 4:
+        return digits[-4:]
+    return "1234"
+

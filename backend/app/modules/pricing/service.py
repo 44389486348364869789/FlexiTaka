@@ -4,7 +4,7 @@ Authoritative calculation of platform fees, discounts, and payout amounts using 
 """
 
 from decimal import Decimal, ROUND_HALF_UP
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.core.constants import ErrorCode, ServiceType, bdt_to_poisha, poisha_to_bdt
 from app.core.exceptions import ValidationException
 from app.db.repositories.pricing_repo import PricingRepository
@@ -14,15 +14,19 @@ class PricingService:
     def __init__(self, pricing_repo: PricingRepository):
         self.pricing_repo = pricing_repo
 
-    async def calculate_cashout_quote(self, operator_code: str, amount_bdt: Decimal) -> Dict[str, Any]:
+    async def calculate_cashout_quote(self, operator_code: str, amount_bdt: Decimal, phone: Optional[str] = None) -> Dict[str, Any]:
+        if phone:
+            from app.modules.operators.resolver import validate_operator_match
+            validate_operator_match(operator_code, phone)
+
         rule = await self.pricing_repo.get_active_rule(ServiceType.CASH_OUT, operator_code)
-        min_amt = Decimal(str(rule.get("min_amount", 50)))
+        min_amt = Decimal(str(rule.get("min_amount", 10)))
         max_amt = Decimal(str(rule.get("max_amount", 50000)))
 
         amount_bdt = Decimal(str(amount_bdt)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if amount_bdt < min_amt or amount_bdt > max_amt:
             raise ValidationException(
-                f"Cash Out amount must be between ৳{min_amt} and ৳{max_amt}",
+                f"Cash Out amount must be between ৳{min_amt} and ৳{max_amt} / পরিমাণ অবশ্যই ৳{min_amt} থেকে ৳{max_amt} এর মধ্যে হতে হবে",
                 code=ErrorCode.AMOUNT_OUT_OF_RANGE
             )
 
@@ -47,15 +51,19 @@ class PricingService:
             "pricing_rule_version": rule.get("version", 1)
         }
 
-    async def calculate_recharge_quote(self, operator_code: str, recharge_amount_bdt: Decimal) -> Dict[str, Any]:
+    async def calculate_recharge_quote(self, operator_code: str, recharge_amount_bdt: Decimal, phone: Optional[str] = None) -> Dict[str, Any]:
+        if phone:
+            from app.modules.operators.resolver import validate_operator_match
+            validate_operator_match(operator_code, phone)
+
         rule = await self.pricing_repo.get_active_rule(ServiceType.RECHARGE, operator_code)
-        min_amt = Decimal(str(rule.get("min_amount", 50)))
+        min_amt = Decimal(str(rule.get("min_amount", 10)))
         max_amt = Decimal(str(rule.get("max_amount", 50000)))
 
         recharge_amount_bdt = Decimal(str(recharge_amount_bdt)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         if recharge_amount_bdt < min_amt or recharge_amount_bdt > max_amt:
             raise ValidationException(
-                f"Recharge amount must be between ৳{min_amt} and ৳{max_amt}",
+                f"Recharge amount must be between ৳{min_amt} and ৳{max_amt} / পরিমাণ অবশ্যই ৳{min_amt} থেকে ৳{max_amt} এর মধ্যে হতে হবে",
                 code=ErrorCode.AMOUNT_OUT_OF_RANGE
             )
 

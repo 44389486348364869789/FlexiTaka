@@ -102,8 +102,8 @@ export default function RechargeLandingPage() {
               </div>
               <p style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", margin: 0 }}>
                 {isBn
-                  ? "প্রতি অর্ডারে সর্বনিম্ন ৳৫০.০০ থেকে সর্বোচ্চ ৳৫০,০০০.০০ পর্যন্ত রিচার্জ গ্রহণযোগ্য।"
-                  : "Available for recharges from ৳50.00 to ৳50,000.00 per transaction."}
+                  ? "প্রতি অর্ডারে সর্বনিম্ন ৳১০.০০ থেকে সর্বোচ্চ ৳৫০,০০০.০০ পর্যন্ত রিচার্জ গ্রহণযোগ্য।"
+                  : "Available for recharges from ৳10.00 to ৳50,000.00 per transaction."}
               </p>
             </div>
           </div>
